@@ -1,0 +1,9 @@
+
+> ad-loft-dashboard@0.0.0 dev
+> npx vite --host
+
+
+  VITE v5.4.19  ready in 558 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.0.2:5173/
