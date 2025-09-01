@@ -10,6 +10,7 @@ import {
     SettingsIcon,
     ChevronDownIcon
 } from '../ui/Icons';
+import { cn } from '@/lib/utils';
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -17,8 +18,6 @@ const Sidebar = () => {
     const [isClientsOpen, setClientsOpen] = useState(true);
 
     useEffect(() => {
-        // Keep the "Clients" dropdown open if we are on a client-related page,
-        // otherwise close it.
         if (location.pathname.startsWith('/clients') || location.pathname.startsWith('/client/')) {
             setClientsOpen(true);
         } else {
@@ -29,7 +28,7 @@ const Sidebar = () => {
     const handleNavigation = (path, isSubItemToggle = false) => {
         if (isSubItemToggle) {
             setClientsOpen(!isClientsOpen);
-        } else {
+        } else if (path) {
             navigate(path);
         }
     };
@@ -38,7 +37,7 @@ const Sidebar = () => {
         { path: '/dashboard', label: 'Dashboard', icon: <HomeIcon /> },
         { path: '/leads', label: 'Leads', icon: <FilterIcon /> },
         {
-            id: 'clients-toggle', // Special ID for the toggle button
+            id: 'clients-toggle',
             label: 'Clients',
             icon: <UsersIcon />,
             subItems: [
@@ -53,17 +52,18 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside className="w-64 bg-glass-bg/80 backdrop-blur-xl border-r border-glass-border flex-col flex-shrink-0 shadow-2xl z-10 hidden md:flex">
+        <aside className="w-64 bg-background/80 backdrop-blur-xl border-r border-border/50 flex-col flex-shrink-0 shadow-2xl z-10 hidden md:flex">
             <nav className="flex-1 px-4 py-8 space-y-1">
                 {navItems.map(item => (
                     <div key={item.id || item.path}>
                         <button
                             onClick={() => handleNavigation(item.path, !!item.subItems)}
-                            className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-base font-semibold transition-all duration-200 ease-in-out ${
-                                (location.pathname === item.path || (item.subItems && location.pathname.startsWith('/client')))
-                                    ? 'bg-primary text-white shadow-lg shadow-blue-600/30'
-                                    : 'text-text-secondary hover:bg-glass-border hover:text-text-primary'
-                            }`}
+                            className={cn(
+                                "w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-base font-semibold transition-all duration-200 ease-in-out",
+                                (location.pathname === item.path || (item.subItems && (location.pathname.startsWith('/clients') || location.pathname.startsWith('/client'))))
+                                    ? 'bg-primary text-primary-foreground shadow-lg'
+                                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            )}
                         >
                             <div className="flex items-center gap-3">
                                 {item.icon}
@@ -77,11 +77,12 @@ const Sidebar = () => {
                                      <button
                                         key={subItem.path}
                                         onClick={() => handleNavigation(subItem.path)}
-                                        className={`w-full text-left px-4 py-2 rounded-md text-sm transition-colors ${
+                                        className={cn(
+                                            "w-full text-left px-4 py-2 rounded-md text-sm transition-colors",
                                             location.pathname === subItem.path
-                                                ? 'text-primary font-semibold'
-                                                : 'text-text-secondary hover:text-text-primary'
-                                        }`}
+                                                ? 'text-foreground font-semibold'
+                                                : 'text-muted-foreground hover:text-accent-foreground'
+                                        )}
                                     >
                                         {subItem.label}
                                     </button>
