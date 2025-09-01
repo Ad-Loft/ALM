@@ -20,11 +20,10 @@ const ClientListItem = ({ client }) => {
         <div onClick={() => navigate(`/client/${client.id}`)} className="flex items-center justify-between p-4 hover:bg-glass-border/30 transition-colors cursor-pointer">
             <div className="flex items-center gap-4">
                 <div className="w-9 h-9 rounded-full bg-glass-bg flex items-center justify-center font-bold text-sm text-text-primary ring-2 ring-glass-border">
-                    {client.companyName.split(' ').map(n => n[0]).join('')}
+                    {client.companyName ? client.companyName.split(' ').map(n => n[0]).join('') : 'C'}
                 </div>
-                <span className="font-medium text-text-primary">{client.companyName}</span>
+                <span className="font-medium text-text-primary">{client.companyName || 'Unnamed Client'}</span>
             </div>
-            {/* Future: Add a status indicator here if needed */}
         </div>
     );
 };
@@ -37,49 +36,64 @@ const DashboardMetrics = () => {
     useEffect(() => {
         const fetchDashboardData = async () => {
             setIsLoading(true);
+            try {
+                // --- Fetch primary collections ---
+                const clientsSnapshot = await getDocs(collection(db, 'clients'));
+                const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            // Fetch all necessary data
-            const clientsSnapshot = await getDocs(collection(db, 'clients'));
-            const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const invoicesSnapshot = await getDocs(collection(db, 'invoices'));
+                const invoicesData = invoicesSnapshot.docs.map(doc => doc.data());
 
-            const invoicesSnapshot = await getDocs(collection(db, 'invoices'));
-            const invoicesData = invoicesSnapshot.docs.map(doc => doc.data());
+                // --- Aggregate data from sub-collections ---
+                let totalProposalSpend = 0;
+                let totalAdSpend = 0;
 
-            // This is a simplification. A real app would likely need to iterate through project subcollections.
-            const projectsSnapshot = await getDocs(collection(db, 'projects')); // Assuming a top-level projects collection for now
-            const projectsData = projectsSnapshot.docs.map(doc => doc.data());
+                for (const client of clientsData) {
+                    // Aggregate proposal spend from each client's projects
+                    const projectsCol = collection(db, 'clients', client.id, 'projects');
+                    const projectsSnapshot = await getDocs(projectsCol);
+                    projectsSnapshot.forEach(doc => {
+                        totalProposalSpend += doc.data().totalCost || 0;
+                    });
 
-            // --- KPI Calculations ---
-            const currentMonth = new Date().getMonth();
-            const monthlyRevenue = invoicesData
-                .filter(inv => inv.status === 'paid' && new Date(inv.paidDate?.toDate()).getMonth() === currentMonth)
-                .reduce((sum, inv) => sum + inv.amount, 0);
+                    // Aggregate ad spend from each client's daily stats
+                    const statsCol = collection(db, 'clients', client.id, 'dailyStats');
+                    const statsSnapshot = await getDocs(statsCol);
+                    statsSnapshot.forEach(doc => {
+                        totalAdSpend += doc.data().spend || 0;
+                    });
+                }
 
-            const paymentsOutstanding = invoicesData
-                .filter(inv => inv.status === 'unpaid')
-                .reduce((sum, inv) => sum + inv.amount, 0);
+                // --- KPI Calculations (with defaults) ---
+                const currentMonth = new Date().getMonth();
+                const monthlyRevenue = invoicesData
+                    .filter(inv => inv.status === 'paid' && inv.paidDate && new Date(inv.paidDate.toDate()).getMonth() === currentMonth)
+                    .reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-            const proposalSpend = projectsData.reduce((sum, proj) => sum + (proj.totalCost || 0), 0);
+                const paymentsOutstanding = invoicesData
+                    .filter(inv => inv.status === 'unpaid')
+                    .reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-            // Assuming Ad Spend is tracked somewhere, placeholder for now
-            const adSpend = 6750; // Placeholder
+                const totalRevenue = invoicesData.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-            const totalRevenue = invoicesData.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0);
+                const roasGoogle = totalAdSpend > 0 ? (totalRevenue / totalAdSpend) : 0;
+                const roasUpwork = totalProposalSpend > 0 ? (totalRevenue / totalProposalSpend) : 0;
 
-            const roasGoogle = adSpend > 0 ? (totalRevenue / adSpend) : 0;
-            const roasUpwork = proposalSpend > 0 ? (totalRevenue / proposalSpend) : 0;
+                setKpiData([
+                    { title: "Monthly Revenue", value: `$${monthlyRevenue.toLocaleString()}`, icon: <DollarSignIcon /> },
+                    { title: "Payments Outstanding", value: `$${paymentsOutstanding.toLocaleString()}`, icon: <ClockIcon /> },
+                    { title: "Proposal Spend", value: `$${totalProposalSpend.toLocaleString()}`, icon: <FileTextIcon /> },
+                    { title: "Ad Spend", value: `$${totalAdSpend.toLocaleString()}`, icon: <ActivityIcon /> },
+                    { title: "ROAS (Google)", value: `${roasGoogle.toFixed(2)}x`, icon: <TrendingUpIcon /> },
+                    { title: "ROAS (Upwork)", value: `${roasUpwork.toFixed(2)}x`, icon: <TrendingUpIcon /> },
+                ]);
 
-            setKpiData([
-                { title: "Monthly Revenue", value: `$${monthlyRevenue.toLocaleString()}`, icon: <DollarSignIcon /> },
-                { title: "Payments Outstanding", value: `$${paymentsOutstanding.toLocaleString()}`, icon: <ClockIcon /> },
-                { title: "Proposal Spend", value: `$${proposalSpend.toLocaleString()}`, icon: <FileTextIcon /> },
-                { title: "Ad Spend", value: `$${adSpend.toLocaleString()}`, icon: <ActivityIcon /> },
-                { title: "ROAS (Google)", value: `${roasGoogle.toFixed(2)}x`, icon: <TrendingUpIcon /> },
-                { title: "ROAS (Upwork)", value: `${roasUpwork.toFixed(2)}x`, icon: <TrendingUpIcon /> },
-            ]);
-
-            setClients(clientsData);
-            setIsLoading(false);
+                setClients(clientsData);
+            } catch (error) {
+                console.error("Failed to fetch dashboard data:", error);
+            } finally {
+                setIsLoading(false);
+            }
         };
 
         fetchDashboardData();
@@ -105,7 +119,11 @@ const DashboardMetrics = () => {
                     <h2 className="text-xl font-bold text-text-primary">Active Clients</h2>
                 </div>
                 <div className="divide-y divide-glass-border">
-                    {clients.map(client => <ClientListItem key={client.id} client={client} />)}
+                    {clients.length > 0 ? (
+                        clients.map(client => <ClientListItem key={client.id} client={client} />)
+                    ) : (
+                        <p className="p-4 text-text-secondary text-center">No clients found.</p>
+                    )}
                 </div>
             </div>
         </div>
