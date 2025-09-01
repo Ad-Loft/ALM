@@ -13,90 +13,74 @@ const OverviewTab = ({ client }) => { const [summary, setSummary] = useState({ o
 // ... (omitted for brevity)
 const ProjectsTab = ({ client }) => { const navigate = useNavigate(); const [projects, setProjects] = useState([]); const [isLoading, setIsLoading] = useState(true); const [showAddForm, setShowAddForm] = useState(false); const [newProject, setNewProject] = useState({ name: '', dueDate: '', estimatedCost: '', totalCost: '' }); const fetchProjects = async () => { setIsLoading(true); const projectsCol = collection(db, 'clients', client.id, 'projects'); const projectSnapshot = await getDocs(projectsCol); const projectList = projectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setProjects(projectList); setIsLoading(false); }; useEffect(() => { fetchProjects(); }, [client.id]); const handleAddProject = async (e) => { e.preventDefault(); try { await addDoc(collection(db, 'clients', client.id, 'projects'), { name: newProject.name, dueDate: newProject.dueDate, estimatedCost: parseFloat(newProject.estimatedCost) || 0, totalCost: parseFloat(newProject.totalCost) || 0, createdAt: serverTimestamp() }); setNewProject({ name: '', dueDate: '', estimatedCost: '', totalCost: '' }); setShowAddForm(false); fetchProjects(); } catch (error) { console.error("Error adding project: ", error); } }; const handleProjectClick = (projectId) => { navigate(`/client/${client.id}/project/${projectId}`); }; if (isLoading) return <LoadingSpinner />; return ( <div> <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold text-text-primary">Projects</h3><button onClick={() => setShowAddForm(!showAddForm)} className="bg-primary hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg text-sm">{showAddForm ? 'Cancel' : '+ Add Project'}</button></div> {showAddForm && (<form onSubmit={handleAddProject} className="mb-6 p-4 bg-matte-black/30 rounded-lg space-y-4"><InputField id="name" label="Project Name" value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} required /><InputField id="dueDate" type="date" label="Due Date" value={newProject.dueDate} onChange={e => setNewProject({...newProject, dueDate: e.target.value})} /><div className="grid grid-cols-2 gap-4"><InputField id="estimatedCost" type="number" label="Estimated Cost ($)" value={newProject.estimatedCost} onChange={e => setNewProject({...newProject, estimatedCost: e.target.value})} /><InputField id="totalCost" type="number" label="Total Cost ($)" value={newProject.totalCost} onChange={e => setNewProject({...newProject, totalCost: e.target.value})} /></div><AuthButton type="submit">Save Project</AuthButton></form>)} <div className="space-y-3">{projects.length > 0 ? projects.map(project => (<div key={project.id} onClick={() => handleProjectClick(project.id)} className="p-4 bg-matte-black/30 rounded-lg flex justify-between items-center cursor-pointer hover:bg-glass-border/20"><div><p className="font-semibold text-text-primary">{project.name}</p><p className="text-sm text-text-secondary">Due: {project.dueDate || 'N/A'}</p></div><p className="font-bold text-text-primary">${(project.totalCost || 0).toLocaleString()}</p></div>)) : (<p className="text-text-secondary">No projects found for this client.</p>)}</div> </div> ); };
 
-// --- INTERACTIONS TAB ---
-const InteractionsTab = ({ client }) => {
-    const [interactions, setInteractions] = useState([]);
+// --- INVOICES TAB ---
+const InvoicesTab = ({ client }) => {
+    const [invoices, setInvoices] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newInteraction, setNewInteraction] = useState({ type: 'Email', notes: '', date: new Date().toISOString().split('T')[0] });
-
-    const interactionsCol = collection(db, 'interactions');
-    const fetchInteractions = async () => {
-        setIsLoading(true);
-        const q = query(interactionsCol, where('clientId', '==', client.id), orderBy('date', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const interactionList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setInteractions(interactionList);
-        setIsLoading(false);
-    };
 
     useEffect(() => {
-        fetchInteractions();
+        const fetchInvoices = async () => {
+            setIsLoading(true);
+            const q = query(collection(db, 'invoices'), where('clientId', '==', client.id), orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const invoiceList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setInvoices(invoiceList);
+            setIsLoading(false);
+        };
+        fetchInvoices();
     }, [client.id]);
 
-    const handleAddInteraction = async (e) => {
-        e.preventDefault();
-        try {
-            await addDoc(interactionsCol, {
-                ...newInteraction,
-                clientId: client.id,
-                createdAt: serverTimestamp()
-            });
-            setNewInteraction({ type: 'Email', notes: '', date: new Date().toISOString().split('T')[0] });
-            setShowAddForm(false);
-            fetchInteractions();
-        } catch (error) {
-            console.error("Error adding interaction: ", error);
-        }
-    };
+    const openInvoices = invoices.filter(inv => inv.status === 'unpaid');
+    const paidInvoices = invoices.filter(inv => inv.status === 'paid');
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-text-primary">Interaction Log</h3>
-                <button onClick={() => setShowAddForm(!showAddForm)} className="bg-primary hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg text-sm">
-                    {showAddForm ? 'Cancel' : '+ Log Interaction'}
-                </button>
-            </div>
-
-            {showAddForm && (
-                <form onSubmit={handleAddInteraction} className="mb-6 p-4 bg-matte-black/30 rounded-lg space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <InputField id="date" type="date" label="Date" value={newInteraction.date} onChange={e => setNewInteraction({...newInteraction, date: e.target.value})} required />
-                        <div>
-                            <label htmlFor="type" className="block text-sm font-medium text-text-secondary mb-2">Type</label>
-                            <select id="type" value={newInteraction.type} onChange={e => setNewInteraction({...newInteraction, type: e.target.value})} className="bg-matte-black/50 text-text-primary block w-full px-3 py-2 border border-glass-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-                                <option>Email</option>
-                                <option>Phone Call</option>
-                                <option>Zoom</option>
-                                <option>Message</option>
-                            </select>
+            <h3 className="text-xl font-bold text-text-primary mb-4">Invoices</h3>
+            {isLoading ? <LoadingSpinner /> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 className="text-lg font-semibold text-text-secondary mb-3">Open</h4>
+                        <div className="space-y-3">
+                            {openInvoices.length > 0 ? openInvoices.map(invoice => (
+                                <div key={invoice.id} className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-text-primary">Invoice #{invoice.id.slice(0, 6)}</p>
+                                        <p className="text-sm text-text-secondary">Due: {invoice.dueDate || 'N/A'}</p>
+                                    </div>
+                                    <p className="font-bold text-red-400">${(invoice.amount || 0).toLocaleString()}</p>
+                                </div>
+                            )) : <p className="text-text-secondary">No open invoices.</p>}
                         </div>
                     </div>
-                    <TextAreaField id="notes" label="Notes" value={newInteraction.notes} onChange={e => setNewInteraction({...newInteraction, notes: e.target.value})} rows="4" required />
-                    <AuthButton type="submit">Save Log</AuthButton>
-                </form>
-            )}
-
-            <div className="space-y-3">
-                {isLoading ? <LoadingSpinner /> : interactions.length > 0 ? interactions.map(item => (
-                    <div key={item.id} className="p-4 bg-matte-black/30 rounded-lg">
-                        <p className="font-semibold text-text-primary">{item.type} on {item.date}</p>
-                        <p className="text-sm text-text-secondary mt-1 whitespace-pre-wrap">{item.notes}</p>
+                    <div>
+                        <h4 className="text-lg font-semibold text-text-secondary mb-3">Paid</h4>
+                        <div className="space-y-3">
+                            {paidInvoices.length > 0 ? paidInvoices.map(invoice => (
+                                <div key={invoice.id} className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-text-primary">Invoice #{invoice.id.slice(0, 6)}</p>
+                                        <p className="text-sm text-text-secondary">Paid: {invoice.paidDate?.toDate().toLocaleDateString() || 'N/A'}</p>
+                                    </div>
+                                    <p className="font-bold text-green-400">${(invoice.amount || 0).toLocaleString()}</p>
+                                </div>
+                            )) : <p className="text-text-secondary">No paid invoices.</p>}
+                        </div>
                     </div>
-                )) : (
-                    <p className="text-text-secondary">No interactions logged for this client.</p>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
 
 
 // --- OTHER TABS (Placeholders) ---
-const InvoicesTab = ({ client }) => <div>Invoices for {client.companyName} - Content coming soon.</div>;
 const ReportingTab = ({ client }) => <div>Reporting for {client.companyName} - Content coming soon.</div>;
 const LeadsTab = ({ client }) => <div>Leads for {client.companyName} - Content coming soon.</div>;
+const InteractionsTab = ({ client }) => {
+    // ... (omitted for brevity)
+    const [interactions, setInteractions] = useState([]); const [isLoading, setIsLoading] = useState(true); const [showAddForm, setShowAddForm] = useState(false); const [newInteraction, setNewInteraction] = useState({ type: 'Email', notes: '', date: new Date().toISOString().split('T')[0] }); const interactionsCol = collection(db, 'interactions'); const fetchInteractions = async () => { setIsLoading(true); const q = query(interactionsCol, where('clientId', '==', client.id), orderBy('date', 'desc')); const querySnapshot = await getDocs(q); const interactionList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setInteractions(interactionList); setIsLoading(false); }; useEffect(() => { fetchInteractions(); }, [client.id]); const handleAddInteraction = async (e) => { e.preventDefault(); try { await addDoc(interactionsCol, { ...newInteraction, clientId: client.id, createdAt: serverTimestamp() }); setNewInteraction({ type: 'Email', notes: '', date: new Date().toISOString().split('T')[0] }); setShowAddForm(false); fetchInteractions(); } catch (error) { console.error("Error adding interaction: ", error); } };
+    return ( <div> <div className="flex justify-between items-center mb-4"> <h3 className="text-xl font-bold text-text-primary">Interaction Log</h3> <button onClick={() => setShowAddForm(!showAddForm)} className="bg-primary hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg text-sm"> {showAddForm ? 'Cancel' : '+ Log Interaction'} </button> </div> {showAddForm && ( <form onSubmit={handleAddInteraction} className="mb-6 p-4 bg-matte-black/30 rounded-lg space-y-4"> <div className="grid grid-cols-2 gap-4"> <InputField id="date" type="date" label="Date" value={newInteraction.date} onChange={e => setNewInteraction({...newInteraction, date: e.target.value})} required /> <div> <label htmlFor="type" className="block text-sm font-medium text-text-secondary mb-2">Type</label> <select id="type" value={newInteraction.type} onChange={e => setNewInteraction({...newInteraction, type: e.target.value})} className="bg-matte-black/50 text-text-primary block w-full px-3 py-2 border border-glass-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"> <option>Email</option> <option>Phone Call</option> <option>Zoom</option> <option>Message</option> </select> </div> </div> <TextAreaField id="notes" label="Notes" value={newInteraction.notes} onChange={e => setNewInteraction({...newInteraction, notes: e.target.value})} rows="4" required /> <AuthButton type="submit">Save Log</AuthButton> </form> )} <div className="space-y-3"> {isLoading ? <LoadingSpinner /> : interactions.length > 0 ? interactions.map(item => ( <div key={item.id} className="p-4 bg-matte-black/30 rounded-lg"> <p className="font-semibold text-text-primary">{item.type} on {item.date}</p> <p className="text-sm text-text-secondary mt-1 whitespace-pre-wrap">{item.notes}</p> </div> )) : ( <p className="text-text-secondary">No interactions logged for this client.</p> )} </div> </div> );
+};
 
 
 // --- MAIN COMPONENT ---
@@ -107,7 +91,7 @@ const ClientDetailPage = () => {
     const [client, setClient] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState('invoices'); // Default to invoices tab
     useEffect(() => { const fetchClient = async () => { setIsLoading(true); const docRef = doc(db, 'clients', clientId); const docSnap = await getDoc(docRef); if (docSnap.exists()) { setClient({ id: docSnap.id, ...docSnap.data() }); } else { setError('No such client found!'); } setIsLoading(false); }; if (clientId) fetchClient(); }, [clientId]);
     const tabs = [ { id: 'overview', label: 'Overview' }, { id: 'projects', label: 'Projects' }, { id: 'invoices', label: 'Invoices' }, { id: 'reporting', label: 'Reporting' }, { id: 'leads', label: 'Leads' }, { id: 'interactions', label: 'Interaction Log' }, ];
     const renderTabContent = () => { if (!client) return null; switch (activeTab) { case 'overview': return <OverviewTab client={client} />; case 'projects': return <ProjectsTab client={client} />; case 'invoices': return <InvoicesTab client={client} />; case 'reporting': return <ReportingTab client={client} />; case 'leads': return <LeadsTab client={client} />; case 'interactions': return <InteractionsTab client={client} />; default: return <OverviewTab client={client} />; } };
