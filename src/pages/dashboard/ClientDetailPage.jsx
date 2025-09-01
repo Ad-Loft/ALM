@@ -6,118 +6,94 @@ import { LoadingSpinner } from '../../components/ui/Icons';
 import { InputField, AuthButton, TextAreaField } from '../../components/ui/AuthComponents';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
-// --- OVERVIEW TAB ---
-// ... (omitted for brevity)
-const OverviewTab = ({ client }) => { /* ... */ };
+// --- TABS (some are placeholders or temporarily disabled) ---
 
-// --- PROJECTS TAB ---
-// ... (omitted for brevity)
-const ProjectsTab = ({ client }) => { /* ... */ };
-
-// --- INVOICES TAB ---
-// ... (omitted for brevity)
-const InvoicesTab = ({ client }) => { /* ... */ };
-
-// --- REPORTING TAB (FIXED) ---
-const ReportingTab = ({ client }) => {
-    const [stats, setStats] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [dateRange, setDateRange] = useState({
-        start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0]
-    });
-
-    useEffect(() => {
-        const fetchStats = async () => {
-            setIsLoading(true);
-            const statsQuery = query(
-                collection(db, `clients/${client.id}/dailyStats`),
-                where('date', '>=', dateRange.start),
-                where('date', '<=', dateRange.end),
-                orderBy('date', 'asc')
-            );
-            const statsSnapshot = await getDocs(statsQuery);
-            const statsData = statsSnapshot.docs.map(d => d.data());
-            setStats(statsData);
-            setIsLoading(false);
-        };
-        fetchStats();
-    }, [client.id, dateRange]);
-
-    const tooltipStyle = {
-        backgroundColor: 'rgba(26, 26, 26, 0.8)', // matte-black with opacity
-        border: '1px solid rgba(255, 255, 255, 0.1)', // glass-border
-        color: '#e5e7eb' // text-primary
-    };
-
-    return (
-        <div>
-            <h3 className="text-xl font-bold text-text-primary mb-4">Reporting</h3>
-            <div className="flex gap-4 mb-6">
-                <InputField id="startDate" type="date" label="Start Date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} />
-                <InputField id="endDate" type="date" label="End Date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} />
-            </div>
-            {isLoading ? <LoadingSpinner /> : stats.length > 0 ? (
-                <div className="space-y-8">
-                    <div>
-                        <h4 className="text-lg font-semibold text-text-secondary mb-3">Spend & Conversions Over Time</h4>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={stats}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                                <XAxis dataKey="date" stroke="#9ca3af" />
-                                <YAxis yAxisId="left" stroke="#9ca3af" />
-                                <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" />
-                                <Tooltip contentStyle={tooltipStyle} />
-                                <Legend />
-                                <Line yAxisId="left" type="monotone" dataKey="spend" stroke="#3b82f6" name="Spend ($)" />
-                                <Line yAxisId="right" type="monotone" dataKey="conversions" stroke="#8884d8" name="Conversions" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div>
-                        <h4 className="text-lg font-semibold text-text-secondary mb-3">Clicks & CPC</h4>
-                         <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={stats}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                                <XAxis dataKey="date" stroke="#9ca3af" />
-                                <YAxis stroke="#9ca3af" />
-                                <Tooltip contentStyle={tooltipStyle} />
-                                <Legend />
-                                <Bar dataKey="clicks" fill="#82ca9d" name="Clicks" />
-                                <Bar dataKey="cpc" fill="#ffc658" name="CPC ($)" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            ) : <p className="text-text-secondary">No reporting data found for this period.</p>}
-        </div>
-    );
-};
-
-
-// --- OTHER TABS ---
-const LeadsTab = ({ client }) => <div>Leads for {client.companyName} - Content coming soon.</div>;
-const InteractionsTab = ({ client }) => { /* ... */ };
+const OverviewTab = ({ client }) => <div>Client Overview for {client.companyName} - Content coming soon.</div>;
+const ProjectsTab = ({ client }) => <div>Projects for {client.companyName} - Content coming soon.</div>;
+const InvoicesTab = ({ client }) => <div>Invoices for {client.companyName} - Content coming soon.</div>;
+const InteractionsTab = ({ client }) => <div>Interaction Log for {client.companyName} - Content coming soon.</div>;
+// const ReportingTab = ({ client }) => <div>Reporting Tab</div>; // Temporarily disabled
+// const LeadsTab = ({ client }) => <div>Leads Tab</div>; // Temporarily disabled
 
 
 // --- MAIN COMPONENT ---
 const ClientDetailPage = () => {
-    // ... (omitted for brevity)
     const { clientId } = useParams();
     const navigate = useNavigate();
     const [client, setClient] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('reporting'); // Default to reporting
-    useEffect(() => { /* ... */ }, [clientId]);
-    const tabs = [ { id: 'overview', label: 'Overview' }, { id: 'projects', label: 'Projects' }, { id: 'invoices', label: 'Invoices' }, { id: 'reporting', label: 'Reporting' }, { id: 'leads', label: 'Leads' }, { id: 'interactions', label: 'Interaction Log' }, ];
-    const renderTabContent = () => { if (!client) return null; switch (activeTab) { /* ... */ case 'reporting': return <ReportingTab client={client} />; /* ... */ } };
+    const [activeTab, setActiveTab] = useState('overview');
+
+    useEffect(() => {
+        const fetchClient = async () => {
+            setIsLoading(true);
+            try {
+                const docRef = doc(db, 'clients', clientId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setClient({ id: docSnap.id, ...docSnap.data() });
+                } else {
+                    setError('No such client found!');
+                }
+            } catch (err) {
+                console.error("Error fetching client data:", err);
+                setError('Failed to fetch client data.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        if (clientId) fetchClient();
+    }, [clientId]);
+
+    const tabs = [
+        { id: 'overview', label: 'Overview' },
+        { id: 'projects', label: 'Projects' },
+        { id: 'invoices', label: 'Invoices' },
+        // { id: 'reporting', label: 'Reporting' },
+        // { id: 'leads', label: 'Leads' },
+        { id: 'interactions', label: 'Interaction Log' },
+    ];
+
+    const renderTabContent = () => {
+        if (!client) return null;
+        switch (activeTab) {
+            case 'overview': return <OverviewTab client={client} />;
+            case 'projects': return <ProjectsTab client={client} />;
+            case 'invoices': return <InvoicesTab client={client} />;
+            // case 'reporting': return <ReportingTab client={client} />;
+            // case 'leads': return <LeadsTab client={client} />;
+            case 'interactions': return <InteractionsTab client={client} />;
+            default: return <OverviewTab client={client} />;
+        }
+    };
+
     if (isLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner /></div>;
     if (error) return <p className="text-center text-red-500">{error}</p>;
     if (!client) return null;
+
     return (
         <div>
-            {/* ... */}
+            <div className="mb-6">
+                <button onClick={() => navigate('/clients/view')} className="text-sm text-primary hover:underline mb-2">&larr; Back to All Clients</button>
+                <h2 className="text-3xl font-bold text-text-primary mb-2">{client.companyName}</h2>
+                <div className="text-base text-text-secondary mt-2 space-y-1">
+                    <p><span className="font-semibold text-text-primary">Contact:</span> {client.fullName}</p>
+                    <p><span className="font-semibold text-text-primary">Email:</span> <a href={`mailto:${client.email}`} className="text-primary hover:underline">{client.email}</a></p>
+                    <p><span className="font-semibold text-text-primary">Phone:</span> {client.phone || 'N/A'}</p>
+                    {client.website && <div><span className="font-semibold text-text-primary">Website:</span> <a href={client.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{client.website}</a></div>}
+                </div>
+            </div>
+            <div className="border-b border-glass-border mb-6">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                    {tabs.map(tab => (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-gray-500'}`}>{tab.label}</button>
+                    ))}
+                </nav>
+            </div>
+            <div className="bg-glass-bg backdrop-blur-xl rounded-2xl shadow-glass border border-glass-border p-6">
+                {renderTabContent()}
+            </div>
         </div>
     );
 };
