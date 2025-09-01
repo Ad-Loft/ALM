@@ -23,7 +23,7 @@ const DashboardLayout = ({ user, onSignOut }) => {
                             <Route path="/dashboard" element={<DashboardMetrics />} />
                             <Route path="/leads" element={<LeadsPage />} />
                             <Route path="/clients/create" element={<CreateClientPage user={user} />} />
-                            <Routew path="/clients/view" element={<ViewClientsPage />} />
+                            <Route path="/clients/view" element={<ViewClientsPage />} />
                             <Route path="/client/:clientId" element={<ClientDetailPage />} />
                             <Route path="/client/:clientId/project/:projectId" element={<ProjectDetailPage />} />
                             {/* Define other nested routes here */}
