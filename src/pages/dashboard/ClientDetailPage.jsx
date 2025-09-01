@@ -7,24 +7,106 @@ import { InputField, AuthButton } from '../../components/ui/AuthComponents';
 
 // --- OVERVIEW TAB ---
 const OverviewTab = ({ client }) => {
-    // ... (omitted for brevity)
-    const [summary, setSummary] = useState({ outstandingAmount: 0, upcomingTasks: [], recentInteractions: [], adSpendLast7Days: 0, conversionsLast7Days: 0, });
+    const [summary, setSummary] = useState({
+        outstandingAmount: 0,
+        upcomingTasks: [],
+        recentInteractions: [],
+        adSpendLast7Days: 0,
+        conversionsLast7Days: 0,
+    });
     const [isLoading, setIsLoading] = useState(true);
-    useEffect(() => { const fetchData = async () => { setIsLoading(true); const invoicesQuery = query(collection(db, 'invoices'), where('clientId', '==', client.id), where('status', '==', 'unpaid')); const invoicesSnapshot = await getDocs(invoicesQuery); const outstandingAmount = invoicesSnapshot.docs.reduce((sum, doc) => sum + doc.data().amount, 0); const projectsCol = collection(db, 'clients', client.id, 'projects'); const projectsSnapshot = await getDocs(projectsCol); let upcomingTasks = []; for (const projectDoc of projectsSnapshot.docs) { const tasksQuery = query(collection(projectDoc.ref, 'tasks'), where('isCompleted', '==', false), orderBy('dueDate'), limit(3)); const tasksSnapshot = await getDocs(tasksQuery); upcomingTasks.push(...tasksSnapshot.docs.map(d => ({...d.data(), projectName: projectDoc.data().name}))); } upcomingTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); const interactionsQuery = query(collection(db, 'interactions'), where('clientId', '==', client.id), orderBy('date', 'desc'), limit(3)); const interactionsSnapshot = await getDocs(interactionsQuery); const recentInteractions = interactionsSnapshot.docs.map(d => d.data()); const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); const statsQuery = query(collection(db, `clients/${client.id}/dailyStats`), where('date', '>=', sevenDaysAgo.toISOString().split('T')[0])); const statsSnapshot = await getDocs(statsQuery); const { adSpendLast7Days, conversionsLast7Days } = statsSnapshot.docs.reduce((acc, doc) => { acc.adSpendLast7Days += doc.data().spend; acc.conversionsLast7Days += doc.data().conversions; return acc; }, { adSpendLast7Days: 0, conversionsLast7Days: 0 }); setSummary({ outstandingAmount, upcomingTasks, recentInteractions, adSpendLast7Days, conversionsLast7Days }); setIsLoading(false); }; fetchData(); }, [client.id]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                // --- Fetch all data concurrently for efficiency ---
+                const [invoicesSnapshot, projectsSnapshot, interactionsSnapshot, statsSnapshot] = await Promise.all([
+                    getDocs(query(collection(db, 'invoices'), where('clientId', '==', client.id), where('status', '==', 'unpaid'))),
+                    getDocs(collection(db, 'clients', client.id, 'projects')),
+                    getDocs(query(collection(db, 'interactions'), where('clientId', '==', client.id), orderBy('date', 'desc'), limit(3))),
+                    getDocs(query(collection(db, `clients/${client.id}/dailyStats`), where('date', '>=', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])))
+                ]);
+
+                // --- Process Financials ---
+                const outstandingAmount = invoicesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+
+                // --- Process Upcoming Tasks ---
+                let upcomingTasks = [];
+                for (const projectDoc of projectsSnapshot.docs) {
+                    const tasksQuery = query(collection(projectDoc.ref, 'tasks'), where('isCompleted', '==', false), orderBy('dueDate'), limit(3));
+                    const tasksSnapshot = await getDocs(tasksQuery);
+                    upcomingTasks.push(...tasksSnapshot.docs.map(d => ({...d.data(), projectName: projectDoc.data().name || 'Unnamed Project'})));
+                }
+                upcomingTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+                // --- Process Interactions ---
+                const recentInteractions = interactionsSnapshot.docs.map(d => d.data());
+
+                // --- Process Ad Stats ---
+                const { adSpendLast7Days, conversionsLast7Days } = statsSnapshot.docs.reduce((acc, doc) => {
+                    acc.adSpendLast7Days += doc.data().spend || 0;
+                    acc.conversionsLast7Days += doc.data().conversions || 0;
+                    return acc;
+                }, { adSpendLast7Days: 0, conversionsLast7Days: 0 });
+
+                setSummary({ outstandingAmount, upcomingTasks, recentInteractions, adSpendLast7Days, conversionsLast7Days });
+            } catch (error) {
+                console.error("Error fetching overview data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [client.id]);
+
     if (isLoading) return <LoadingSpinner />;
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-                <div><h4 className="text-lg font-bold text-text-primary mb-3">Ad Performance (Last 7 Days)</h4><div className="grid grid-cols-2 gap-4"><div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Ad Spend</p><p className="text-2xl font-bold">${summary.adSpendLast7Days.toLocaleString()}</p></div><div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Conversions</p><p className="text-2xl font-bold">{summary.conversionsLast7Days}</p></div></div></div>
-                <div><h4 className="text-lg font-bold text-text-primary mb-3">Upcoming Deadlines</h4><div className="space-y-2">{summary.upcomingTasks.length > 0 ? summary.upcomingTasks.slice(0,3).map((task,i) => (<div key={i} className="p-3 bg-matte-black/30 rounded-lg"><p className="font-semibold">{task.name} ({task.projectName})</p><p className="text-sm text-text-secondary">Due: {task.dueDate}</p></div>)) : <p className="text-text-secondary">No upcoming deadlines.</p>}</div></div>
+                {/* Ad Performance */}
+                <div>
+                    <h4 className="text-lg font-bold text-text-primary mb-3">Ad Performance (Last 7 Days)</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Ad Spend</p><p className="text-2xl font-bold">${summary.adSpendLast7Days.toLocaleString()}</p></div>
+                        <div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Conversions</p><p className="text-2xl font-bold">{summary.conversionsLast7Days}</p></div>
+                    </div>
+                </div>
+                {/* Upcoming Deadlines */}
+                <div>
+                    <h4 className="text-lg font-bold text-text-primary mb-3">Upcoming Deadlines</h4>
+                    <div className="space-y-2">
+                        {summary.upcomingTasks.length > 0 ? summary.upcomingTasks.slice(0,3).map((task,i) => (
+                             <div key={i} className="p-3 bg-matte-black/30 rounded-lg"><p className="font-semibold">{task.name || 'Unnamed Task'} ({task.projectName})</p><p className="text-sm text-text-secondary">Due: {task.dueDate || 'N/A'}</p></div>
+                        )) : <p className="text-text-secondary">No upcoming deadlines.</p>}
+                    </div>
+                </div>
             </div>
             <div className="space-y-6">
-                <div><h4 className="text-lg font-bold text-text-primary mb-3">Financials</h4><div className="space-y-2"><div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Outstanding</p><p className="text-2xl font-bold text-red-500">${summary.outstandingAmount.toLocaleString()}</p></div><div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Monthly Retainer</p><p className="text-2xl font-bold">${(client.monthlyRetainer || 0).toLocaleString()}</p></div></div></div>
-                <div><h4 className="text-lg font-bold text-text-primary mb-3">Recent Activity</h4><div className="space-y-2">{summary.recentInteractions.length > 0 ? summary.recentInteractions.map((int, i) => (<div key={i} className="p-3 bg-matte-black/30 rounded-lg"><p className="font-semibold">{int.type}</p><p className="text-sm text-text-secondary">{new Date(int.date).toLocaleDateString()}</p></div>)) : <p className="text-text-secondary">No recent interactions.</p>}</div></div>
+                {/* Financials */}
+                <div>
+                    <h4 className="text-lg font-bold text-text-primary mb-3">Financials</h4>
+                    <div className="space-y-2">
+                        <div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Outstanding</p><p className="text-2xl font-bold text-red-500">${summary.outstandingAmount.toLocaleString()}</p></div>
+                        <div className="p-4 bg-matte-black/30 rounded-lg"><p className="text-sm text-text-secondary">Monthly Retainer</p><p className="text-2xl font-bold">${(client.monthlyAmount || 0).toLocaleString()}</p></div>
+                    </div>
+                </div>
+                {/* Recent Activity */}
+                <div>
+                    <h4 className="text-lg font-bold text-text-primary mb-3">Recent Activity</h4>
+                    <div className="space-y-2">
+                        {summary.recentInteractions.length > 0 ? summary.recentInteractions.map((int, i) => (
+                             <div key={i} className="p-3 bg-matte-black/30 rounded-lg"><p className="font-semibold">{int.type || 'Interaction'}</p><p className="text-sm text-text-secondary">{int.date ? new Date(int.date).toLocaleDateString() : 'N/A'}</p></div>
+                        )) : <p className="text-text-secondary">No recent interactions.</p>}
+                    </div>
+                </div>
             </div>
         </div>
     );
 };
+
 
 // --- PROJECTS TAB ---
 const ProjectsTab = ({ client }) => {
@@ -57,54 +139,19 @@ const InteractionsTab = ({ client }) => <div>Interaction Log for {client.company
 
 // --- MAIN COMPONENT ---
 const ClientDetailPage = () => {
+    // ... (omitted for brevity)
     const { clientId } = useParams();
     const navigate = useNavigate();
     const [client, setClient] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('overview');
-
-    useEffect(() => {
-        const fetchClient = async () => {
-            setIsLoading(true);
-            const docRef = doc(db, 'clients', clientId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                setClient({ id: docSnap.id, ...docSnap.data() });
-            } else {
-                setError('No such client found!');
-            }
-            setIsLoading(false);
-        };
-        if (clientId) fetchClient();
-    }, [clientId]);
-
-    const tabs = [
-        { id: 'overview', label: 'Overview' },
-        { id: 'projects', label: 'Projects' },
-        { id: 'invoices', label: 'Invoices' },
-        { id: 'reporting', label: 'Reporting' },
-        { id: 'leads', label: 'Leads' },
-        { id: 'interactions', label: 'Interaction Log' },
-    ];
-
-    const renderTabContent = () => {
-        if (!client) return null;
-        switch (activeTab) {
-            case 'overview': return <OverviewTab client={client} />;
-            case 'projects': return <ProjectsTab client={client} />;
-            case 'invoices': return <InvoicesTab client={client} />;
-            case 'reporting': return <ReportingTab client={client} />;
-            case 'leads': return <LeadsTab client={client} />;
-            case 'interactions': return <InteractionsTab client={client} />;
-            default: return <OverviewTab client={client} />;
-        }
-    };
-
+    useEffect(() => { const fetchClient = async () => { setIsLoading(true); const docRef = doc(db, 'clients', clientId); const docSnap = await getDoc(docRef); if (docSnap.exists()) { setClient({ id: docSnap.id, ...docSnap.data() }); } else { setError('No such client found!'); } setIsLoading(false); }; if (clientId) fetchClient(); }, [clientId]);
+    const tabs = [ { id: 'overview', label: 'Overview' }, { id: 'projects', label: 'Projects' }, { id: 'invoices', label: 'Invoices' }, { id: 'reporting', label: 'Reporting' }, { id: 'leads', label: 'Leads' }, { id: 'interactions', label: 'Interaction Log' }, ];
+    const renderTabContent = () => { if (!client) return null; switch (activeTab) { case 'overview': return <OverviewTab client={client} />; case 'projects': return <ProjectsTab client={client} />; case 'invoices': return <InvoicesTab client={client} />; case 'reporting': return <ReportingTab client={client} />; case 'leads': return <LeadsTab client={client} />; case 'interactions': return <InteractionsTab client={client} />; default: return <OverviewTab client={client} />; } };
     if (isLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner /></div>;
     if (error) return <p className="text-center text-red-500">{error}</p>;
     if (!client) return null;
-
     return (
         <div>
             <div className="mb-6">
