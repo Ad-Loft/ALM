@@ -17,9 +17,12 @@ const Sidebar = () => {
     const [isClientsOpen, setClientsOpen] = useState(true);
 
     useEffect(() => {
-        // Keep the "Clients" dropdown open if we are on a client-related page
+        // Keep the "Clients" dropdown open if we are on a client-related page,
+        // otherwise close it.
         if (location.pathname.startsWith('/clients') || location.pathname.startsWith('/client/')) {
             setClientsOpen(true);
+        } else {
+            setClientsOpen(false);
         }
     }, [location.pathname]);
 

@@ -8,6 +8,7 @@ import CreateClientPage from './dashboard/CreateClientPage';
 import ViewClientsPage from './dashboard/ViewClientsPage';
 import ClientDetailPage from './dashboard/ClientDetailPage';
 import ProjectDetailPage from './dashboard/ProjectDetailPage';
+import LeadsPage from './dashboard/LeadsPage';
 
 const DashboardLayout = ({ user, onSignOut }) => {
     return (
@@ -20,8 +21,9 @@ const DashboardLayout = ({ user, onSignOut }) => {
                         <Routes>
                             <Route path="/" element={<Navigate to="/dashboard" replace />} />
                             <Route path="/dashboard" element={<DashboardMetrics />} />
+                            <Route path="/leads" element={<LeadsPage />} />
                             <Route path="/clients/create" element={<CreateClientPage user={user} />} />
-                            <Route path="/clients/view" element={<ViewClientsPage />} />
+                            <Routew path="/clients/view" element={<ViewClientsPage />} />
                             <Route path="/client/:clientId" element={<ClientDetailPage />} />
                             <Route path="/client/:clientId/project/:projectId" element={<ProjectDetailPage />} />
                             {/* Define other nested routes here */}
