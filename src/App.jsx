@@ -23,7 +23,11 @@ const AppWrapper = () => {
     }, []);
 
     if (isLoading) {
-        return <LoadingSpinner />;
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <LoadingSpinner />
+            </div>
+        );
     }
 
     return (
