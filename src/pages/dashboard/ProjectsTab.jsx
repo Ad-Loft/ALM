@@ -154,7 +154,7 @@ const ProjectsTab = ({ client }) => {
                             <div className="bg-primary h-2.5 rounded-full" style={{ width: `${project.progress || 0}%` }}></div>
                         </div>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{project.dueDate ? new Date(project.dueDate.toDate()).toLocaleDateString() : 'N/A'}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{project.dueDate && project.dueDate.toDate ? project.dueDate.toDate().toLocaleDateString() : 'N/A'}</td>
                     </tr>
                     ))}
                 </tbody>
