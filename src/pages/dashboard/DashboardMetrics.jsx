@@ -5,13 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner, DollarSignIcon, ClockIcon, FileTextIcon, ActivityIcon, TrendingUpIcon } from '../../components/ui/Icons';
 
 const KpiCard = ({ title, value, icon }) => (
-    <div className="bg-card p-5 rounded-lg border border-border transition-all duration-300 hover:border-primary">
+    <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light p-5 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:border-primary/50">
         <div className="flex items-start justify-between">
             <div className="flex flex-col">
                 <p className="text-base text-muted-foreground mb-2">{title}</p>
                 <p className="text-3xl font-bold text-foreground">{value}</p>
             </div>
-            <div className="bg-secondary p-3 rounded-lg text-primary">{icon}</div>
+            <div className="bg-white/50 p-3 rounded-lg text-primary">{icon}</div>
         </div>
     </div>
 );
@@ -116,11 +116,11 @@ const DashboardMetrics = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {kpiData.map((kpi, index) => <KpiCard key={index} {...kpi} />)}
             </div>
-            <div className="bg-card rounded-lg border border-border">
-                <div className="p-4 sm:p-6 border-b border-border">
+            <div className="bg-glass-light backdrop-blur-lg rounded-xl border border-glass-border-light shadow-lg">
+                <div className="p-4 sm:p-6 border-b border-glass-border-light">
                     <h2 className="text-xl font-bold text-foreground">Active Clients</h2>
                 </div>
-                <div className="divide-y divide-border">
+                <div className="divide-y divide-glass-border-light">
                     {clients.length > 0 ? (
                         clients.map(client => <ClientListItem key={client.id} client={client} />)
                     ) : (

@@ -7,7 +7,7 @@ import { LoadingSpinner } from './Icons';
 
 // Note: AuthCard and AuthHeader remain the same as they are custom styled components.
 export const AuthCard = ({ children }) => (
-    <div className="bg-card border border-border rounded-lg p-8">
+    <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-8 shadow-xl">
         {children}
     </div>
 );
