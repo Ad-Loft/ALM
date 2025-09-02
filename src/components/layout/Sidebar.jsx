@@ -52,7 +52,7 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside className="w-64 bg-background/80 backdrop-blur-xl border-r border-border/50 flex-col flex-shrink-0 shadow-2xl z-10 hidden md:flex">
+        <aside className="w-64 bg-glass-bg backdrop-blur-lg border-r border-glass-border flex-col flex-shrink-0 shadow-2xl z-10 hidden md:flex">
             <nav className="flex-1 px-4 py-8 space-y-1">
                 {navItems.map(item => (
                     <div key={item.id || item.path}>
