@@ -8,37 +8,6 @@ import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Label } from '../../components/ui/label';
 
-// --- Sub-components for the Projects Tab ---
-
-const ProjectCard = ({ project }) => {
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'In Progress': return 'bg-blue-500';
-            case 'Completed': return 'bg-green-500';
-            case 'Not Started':
-            default:
-                return 'bg-gray-500';
-        }
-    };
-
-    return (
-        <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg flex flex-col justify-between">
-            <div>
-                <div className="flex justify-between items-start">
-                    <h4 className="text-lg font-semibold text-foreground">{project.name}</h4>
-                    <span className={`px-2 py-1 text-xs font-medium text-white rounded-full ${getStatusColor(project.status)}`}>
-                        {project.status}
-                    </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2 h-20 overflow-hidden">{project.description}</p>
-            </div>
-            <div className="mt-4 pt-4 border-t border-glass-border-light text-sm text-muted-foreground">
-                <p>Due: {project.dueDate ? new Date(project.dueDate.toDate()).toLocaleDateString() : 'N/A'}</p>
-            </div>
-        </div>
-    );
-};
-
 const CreateProjectModal = ({ isOpen, setIsOpen, client, onProjectCreated }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -57,6 +26,7 @@ const CreateProjectModal = ({ isOpen, setIsOpen, client, onProjectCreated }) => 
                 dueDate: dueDate ? new Date(dueDate) : null,
                 status,
                 createdAt: serverTimestamp(),
+                progress: 0,
             });
             onProjectCreated(); // This will trigger a re-fetch in the parent
             setIsOpen(false); // Close modal on success
@@ -122,7 +92,7 @@ const ProjectsTab = ({ client }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchProjects = async () => {
-    setIsLoading(true);
+    // No need to set loading true here, as it's handled in the initial load
     try {
       const projectsQuery = query(
         collection(db, 'clients', client.id, 'projects'),
@@ -133,11 +103,12 @@ const ProjectsTab = ({ client }) => {
     } catch (error) {
       console.error("Error fetching projects:", error);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Only set loading to false after the initial fetch
     }
   };
 
   useEffect(() => {
+    setIsLoading(true);
     fetchProjects();
   }, [client.id]);
 
@@ -163,18 +134,38 @@ const ProjectsTab = ({ client }) => {
             </div>
         </div>
 
-        {projects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {projects.map(project => (
-                    <ProjectCard key={project.id} project={project} />
-                ))}
-            </div>
-        ) : (
-            <div className="text-center py-12 bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl shadow-lg">
-                <h4 className="text-lg font-semibold text-foreground">No Projects Found</h4>
-                <p className="text-sm text-muted-foreground mt-1">Get started by creating a new project.</p>
-            </div>
-        )}
+        <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl shadow-lg">
+            <table className="min-w-full divide-y divide-glass-border-light">
+                <thead className="bg-white/5">
+                    <tr>
+                        <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-foreground sm:pl-6">Project Name</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">Status</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">Progress</th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">Due Date</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-glass-border-light">
+                    {projects.map((project) => (
+                    <tr key={project.id}>
+                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-foreground sm:pl-6">{project.name}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{project.status}</td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                            <div className="bg-primary h-2.5 rounded-full" style={{ width: `${project.progress || 0}%` }}></div>
+                        </div>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{project.dueDate ? new Date(project.dueDate.toDate()).toLocaleDateString() : 'N/A'}</td>
+                    </tr>
+                    ))}
+                </tbody>
+            </table>
+            {projects.length === 0 && !isLoading && (
+                <div className="text-center py-12">
+                    <h4 className="text-lg font-semibold text-foreground">No Projects Found</h4>
+                    <p className="text-sm text-muted-foreground mt-1">Get started by creating a new project.</p>
+                </div>
+            )}
+        </div>
 
         <CreateProjectModal
             isOpen={isModalOpen}
