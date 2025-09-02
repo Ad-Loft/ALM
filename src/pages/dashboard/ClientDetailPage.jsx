@@ -4,9 +4,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { LoadingSpinner } from '../../components/ui/Icons';
 import OverviewTab from './OverviewTab';
+import ProjectsTab from './ProjectsTab';
 
 // --- TABS (placeholders for now) ---
-const ProjectsTab = ({ client }) => <div>Projects for {client.companyName} - Content coming soon.</div>;
 const InvoicesTab = ({ client }) => <div>Invoices for {client.companyName} - Content coming soon.</div>;
 const InteractionsTab = ({ client }) => <div>Interaction Log for {client.companyName} - Content coming soon.</div>;
 
