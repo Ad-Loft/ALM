@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { LoadingSpinner, DollarSignIcon, ClockIcon, FileTextIcon, ActivityIcon } from '../../components/ui/Icons';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import { addDays } from 'date-fns';
 
 // --- Sub-components for the Overview Tab ---
 
@@ -70,6 +72,10 @@ const RecentActivityFeed = ({ activity }) => (
 // --- Main Overview Tab Component ---
 
 const OverviewTab = ({ client }) => {
+  const [date, setDate] = useState({
+    from: addDays(new Date(), -7),
+    to: new Date(),
+  });
   const [dueInvoices, setDueInvoices] = useState([]);
   const [dueTasks, setDueTasks] = useState([]);
   const [stats, setStats] = useState(null);
@@ -102,11 +108,11 @@ const OverviewTab = ({ client }) => {
         const tasksSnapshot = await getDocs(tasksQuery);
         setDueTasks(tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-        // Fetch Weekly Stats (assuming a 'dailyStats' sub-collection)
+        // Fetch Stats for selected date range
         const statsQuery = query(
           collection(db, 'clients', clientId, 'dailyStats'),
-          orderBy('date', 'desc'),
-          limit(7)
+          where('date', '>=', date.from),
+          where('date', '<=', date.to)
         );
         const statsSnapshot = await getDocs(statsQuery);
         const weeklyStats = statsSnapshot.docs.reduce((acc, doc) => {
@@ -137,7 +143,7 @@ const OverviewTab = ({ client }) => {
     };
 
     fetchData();
-  }, [client.id]);
+  }, [client.id, date]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-48"><LoadingSpinner /></div>;
@@ -148,11 +154,17 @@ const OverviewTab = ({ client }) => {
 
       {/* Left Column */}
       <div className="lg:col-span-2 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Spend" value={`$${stats?.spend.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
-            <StatCard title="Clicks" value={stats?.clicks || 0} icon={<ActivityIcon />} />
-            <StatCard title="CPC" value={`$${stats?.cpc.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
-            <StatCard title="Conversions" value={stats?.conversions || 0} icon={<FileTextIcon />} />
+        <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-semibold text-foreground">Performance Stats</h3>
+            <DateRangePicker date={date} setDate={setDate} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard title="Spend" value={`$${stats?.spend.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
+              <StatCard title="Clicks" value={stats?.clicks || 0} icon={<ActivityIcon />} />
+              <StatCard title="CPC" value={`$${stats?.cpc.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
+              <StatCard title="Conversions" value={stats?.conversions || 0} icon={<FileTextIcon />} />
+          </div>
         </div>
         <RecentActivityFeed activity={activity} />
       </div>
