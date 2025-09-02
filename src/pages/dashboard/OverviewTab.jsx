@@ -1,9 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { LoadingSpinner } from '../../components/ui/Icons';
+import { LoadingSpinner, DollarSignIcon, ClockIcon, FileTextIcon, ActivityIcon } from '../../components/ui/Icons';
+
+// --- Sub-components for the Overview Tab ---
+
+const ContactInfoCard = ({ client }) => (
+  <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg">
+    <h3 className="text-lg font-semibold text-foreground mb-4">Contact & Payment</h3>
+    <div className="space-y-2 text-sm">
+      <p><strong className="text-muted-foreground">Name:</strong> {client.fullName}</p>
+      <p><strong className="text-muted-foreground">Email:</strong> <a href={`mailto:${client.email}`} className="text-primary hover:underline">{client.email}</a></p>
+      <p><strong className="text-muted-foreground">Phone:</strong> {client.phone || 'N/A'}</p>
+      <div className="pt-2 mt-2 border-t border-glass-border-light">
+        <p><strong className="text-muted-foreground">Monthly Payment:</strong> ${client.monthlyAmount?.toLocaleString() || 'N/A'}</p>
+        <p><strong className="text-muted-foreground">Due Date:</strong> Day {client.paymentDueDate || 'N/A'} of month</p>
+      </div>
+    </div>
+  </div>
+);
+
+const DueItemsCard = ({ title, items, icon }) => (
+  <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg">
+    <div className="flex items-center gap-3 mb-4">
+        {icon}
+        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+    </div>
+    <ul className="space-y-2 text-sm">
+      {items.length > 0 ? items.map(item => (
+        <li key={item.id} className="flex justify-between items-center">
+          <span>{item.description || `Invoice #${item.invoiceNumber}`}</span>
+          <span className="font-medium text-muted-foreground">${item.amount?.toLocaleString()}</span>
+        </li>
+      )) : <p className="text-sm text-muted-foreground">No due items.</p>}
+    </ul>
+  </div>
+);
+
+const StatCard = ({ title, value, icon }) => (
+    <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-4 shadow-lg flex items-center gap-4">
+        <div className="bg-secondary/10 p-3 rounded-lg text-primary">
+            {icon}
+        </div>
+        <div>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold text-foreground">{value}</p>
+        </div>
+    </div>
+);
+
+const RecentActivityFeed = ({ activity }) => (
+  <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg">
+    <h3 className="text-lg font-semibold text-foreground mb-4">Recent Activity</h3>
+    <ul className="space-y-3">
+      {activity.length > 0 ? activity.map(act => (
+        <li key={act.id} className="flex items-center gap-3 text-sm">
+          <div className="bg-secondary/10 p-2 rounded-full"><ActivityIcon /></div>
+          <div>
+            <p className="text-foreground">{act.description}</p>
+            <p className="text-xs text-muted-foreground">{new Date(act.timestamp?.toDate()).toLocaleString()}</p>
+          </div>
+        </li>
+      )) : <p className="text-sm text-muted-foreground">No recent activity.</p>}
+    </ul>
+  </div>
+);
+
+
+// --- Main Overview Tab Component ---
 
 const OverviewTab = ({ client }) => {
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [dueInvoices, setDueInvoices] = useState([]);
   const [dueTasks, setDueTasks] = useState([]);
   const [stats, setStats] = useState(null);
@@ -36,11 +108,14 @@ const OverviewTab = ({ client }) => {
         const tasksSnapshot = await getDocs(tasksQuery);
         setDueTasks(tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-        // Fetch Weekly Stats (assuming a 'dailyStats' sub-collection)
+        // Fetch Stats for selected date range
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
         const statsQuery = query(
           collection(db, 'clients', clientId, 'dailyStats'),
-          orderBy('date', 'desc'),
-          limit(7)
+          where('date', '>=', start),
+          where('date', '<=', end)
         );
         const statsSnapshot = await getDocs(statsQuery);
         const weeklyStats = statsSnapshot.docs.reduce((acc, doc) => {
@@ -71,18 +146,43 @@ const OverviewTab = ({ client }) => {
     };
 
     fetchData();
-  }, [client.id]);
+  }, [client.id, startDate, endDate]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-48"><LoadingSpinner /></div>;
   }
 
   return (
-    <div>
-      <h3 className="text-lg font-medium leading-6 text-foreground">Client Overview</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        This is the overview tab for {client.companyName}. The date picker feature has been temporarily removed to fix a bug.
-      </p>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      {/* Left Column */}
+      <div className="lg:col-span-2 space-y-6">
+        <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-6 shadow-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-foreground">Performance Stats</h3>
+            <div className="flex items-center gap-2 text-sm">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-input border border-border rounded-md px-2 py-1" />
+              <span>to</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-input border border-border rounded-md px-2 py-1" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard title="Spend" value={`$${stats?.spend.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
+            <StatCard title="Clicks" value={stats?.clicks || 0} icon={<ActivityIcon />} />
+            <StatCard title="CPC" value={`$${stats?.cpc.toFixed(2) || '0.00'}`} icon={<DollarSignIcon />} />
+            <StatCard title="Conversions" value={stats?.conversions || 0} icon={<FileTextIcon />} />
+          </div>
+        </div>
+        <RecentActivityFeed activity={activity} />
+      </div>
+
+      {/* Right Column */}
+      <div className="space-y-6">
+        <ContactInfoCard client={client} />
+        <DueItemsCard title="Due Invoices" items={dueInvoices} icon={<DollarSignIcon />} />
+        <DueItemsCard title="Due Tasks" items={dueTasks} icon={<ClockIcon />} />
+      </div>
+
     </div>
   );
 };
