@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db } from '../../firebase/config';
-import { LoadingSpinner } from '../../components/ui/Icons';
+import { LoadingSpinner, PaperclipIcon, XIcon } from '../../components/ui/Icons';
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
-import { Input } from '../../components/ui/input';
 
 const UpdatesTab = ({ client, project }) => {
   const [updates, setUpdates] = useState([]);
@@ -13,6 +12,7 @@ const UpdatesTab = ({ client, project }) => {
   const [file, setFile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchUpdates = async () => {
     setIsLoading(true);
@@ -37,6 +37,13 @@ const UpdatesTab = ({ client, project }) => {
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       setFile(e.target.files[0]);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+        fileInputRef.current.value = "";
     }
   };
 
@@ -66,11 +73,7 @@ const UpdatesTab = ({ client, project }) => {
       });
 
       setNewUpdate('');
-      setFile(null);
-      // Clear the file input visually (this is a bit of a hack)
-      if (document.getElementById('update-file-input')) {
-        document.getElementById('update-file-input').value = "";
-      }
+      handleRemoveFile();
       fetchUpdates(); // Re-fetch updates after posting
     } catch (error) {
       console.error("Error posting update:", error);
@@ -86,23 +89,36 @@ const UpdatesTab = ({ client, project }) => {
   return (
     <div className="max-w-4xl mx-auto">
       <form onSubmit={handleSubmit} className="mb-6">
-        <Textarea
-          value={newUpdate}
-          onChange={(e) => setNewUpdate(e.target.value)}
-          placeholder="Post a new status update..."
-          className="mb-2"
-          rows={4}
-        />
-        <div className="flex justify-between items-center mt-2">
-            <Input
-                id="update-file-input"
-                type="file"
-                onChange={handleFileChange}
-                className="max-w-xs text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+        <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl shadow-lg p-4">
+            <Textarea
+              value={newUpdate}
+              onChange={(e) => setNewUpdate(e.target.value)}
+              placeholder="Post a new status update..."
+              className="bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+              rows={4}
             />
-            <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <LoadingSpinner className="h-4 w-4" /> : 'Post Update'}
-            </Button>
+            {file && (
+                <div className="mt-2 flex items-center justify-between text-sm bg-white/10 p-2 rounded-md">
+                    <span className="text-muted-foreground truncate">{file.name}</span>
+                    <Button type="button" variant="ghost" size="icon" onClick={handleRemoveFile} className="h-6 w-6">
+                        <XIcon className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+            <div className="flex justify-between items-center mt-2">
+                <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current.click()}>
+                    <PaperclipIcon className="h-5 w-5" />
+                </Button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                />
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <LoadingSpinner className="h-4 w-4" /> : 'Post Update'}
+                </Button>
+            </div>
         </div>
       </form>
 
