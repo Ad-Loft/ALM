@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { LoadingSpinner } from '../../components/ui/Icons';
@@ -90,6 +91,7 @@ const ProjectsTab = ({ client }) => {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   const fetchProjects = async () => {
     // No need to set loading true here, as it's handled in the initial load
@@ -114,6 +116,10 @@ const ProjectsTab = ({ client }) => {
 
   const handleProjectCreated = () => {
     fetchProjects(); // Re-fetch projects when a new one is created
+  };
+
+  const handleProjectClick = (projectId) => {
+    navigate(`/client/${client.id}/project/${projectId}`);
   };
 
   if (isLoading) {
@@ -146,7 +152,7 @@ const ProjectsTab = ({ client }) => {
                 </thead>
                 <tbody className="divide-y divide-glass-border-light">
                     {projects.map((project) => (
-                    <tr key={project.id}>
+                    <tr key={project.id} onClick={() => handleProjectClick(project.id)} className="cursor-pointer hover:bg-white/10">
                         <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-foreground sm:pl-6">{project.name}</td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">{project.status}</td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
