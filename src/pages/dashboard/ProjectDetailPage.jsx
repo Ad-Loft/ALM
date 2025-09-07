@@ -5,52 +5,227 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } f
 import { db } from '../../firebase/config';
 import { LoadingSpinner } from '../../components/ui/Icons';
 import { InputField, AuthButton, TextAreaField } from '../../components/ui/AuthComponents';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
-// --- ADD TASK MODAL (from previous implementation) ---
-const AddTaskModal = ({ clientId, projectId, onClose, onTaskAdded }) => {
-    const [taskData, setTaskData] = useState({ name: '', description: '', dueDate: '' });
-    const [file, setFile] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const handleChange = (e) => setTaskData({...taskData, [e.target.id]: e.target.value});
-    const handleFileChange = (e) => setFile(e.target.files[0]);
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-        try {
-            let fileURL = '';
-            if (file) {
-                const storage = getStorage();
-                const storageRef = ref(storage, `tasks/${projectId}/${file.name}`);
-                const uploadTask = await uploadBytesResumable(storageRef, file);
-                fileURL = await getDownloadURL(uploadTask.ref);
-            }
-            const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
-            await addDoc(tasksCol, { ...taskData, isCompleted: false, fileURL: fileURL, fileName: file ? file.name : '', createdAt: serverTimestamp() });
-            onTaskAdded();
-            onClose();
-        } catch (error) { console.error("Error adding task:", error); } finally { setIsSubmitting(false); }
+const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
+    const [editingTask, setEditingTask] = useState(task);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [isEditingDesc, setIsEditingDesc] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [newComment, setNewComment] = useState("");
+
+    // Fetch comments
+    useEffect(() => {
+        const commentsCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id, 'comments');
+        const q = query(commentsCol, orderBy('createdAt', 'asc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return unsubscribe;
+    }, [clientId, projectId, task.id]);
+
+    const handleUpdate = async (field, value) => {
+        const taskRef = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id);
+        await updateDoc(taskRef, { [field]: value });
+        onUpdate(); // Trigger a refetch on the board
     };
-    return ( <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 animate-fade-in"> <div className="bg-glass-bg rounded-2xl shadow-glass border border-glass-border w-full max-w-lg m-4"> <form onSubmit={handleSubmit}> <div className="p-6 border-b border-glass-border"><h3 className="text-xl font-bold text-text-primary">Add New Task</h3></div> <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4"> <InputField id="name" label="Task Name" value={taskData.name} onChange={handleChange} required /> <TextAreaField id="description" label="Description" value={taskData.description} onChange={handleChange} rows="4" /> <InputField id="dueDate" type="date" label="Due Date" value={taskData.dueDate} onChange={handleChange} /> <InputField id="file" type="file" label="Attach File" onChange={handleFileChange} /> </div> <div className="p-4 bg-matte-black/30 rounded-b-2xl flex justify-end gap-4"> <button type="button" onClick={onClose} className="text-text-primary font-semibold py-2 px-4 rounded-lg">Cancel</button> <AuthButton type="submit" isLoading={isSubmitting}>Add Task</AuthButton> </div> </form> </div> </div> );
+
+    const handleSubtaskChange = async (index, completed) => {
+        const newSubtasks = [...(editingTask.subtasks || [])];
+        newSubtasks[index].completed = completed;
+        await handleUpdate('subtasks', newSubtasks);
+        setEditingTask(prev => ({...prev, subtasks: newSubtasks}));
+    };
+
+    const handleAddSubtask = async (e) => {
+        e.preventDefault();
+        const text = e.target.elements.subtask.value.trim();
+        if (!text) return;
+        const newSubtasks = [...(editingTask.subtasks || []), { text, completed: false }];
+        await handleUpdate('subtasks', newSubtasks);
+        setEditingTask(prev => ({...prev, subtasks: newSubtasks}));
+        e.target.reset();
+    };
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
+        const commentsCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id, 'comments');
+        await addDoc(commentsCol, {
+            text: newComment,
+            createdAt: serverTimestamp(),
+            // authorId: auth.currentUser.uid, // When auth is integrated
+            authorName: "User" // Placeholder
+        });
+        setNewComment("");
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-glass-bg-solid w-full max-w-2xl h-[90vh] flex flex-col rounded-2xl shadow-glass border border-glass-border m-4" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-glass-border flex-shrink-0">
+                    {isEditingName ? (
+                        <input type="text" value={editingTask.name} onChange={e => setEditingTask({...editingTask, name: e.target.value})} onBlur={() => { handleUpdate('name', editingTask.name); setIsEditingName(false); }} autoFocus className="text-xl font-bold text-text-primary bg-transparent w-full border-b-2 border-primary focus:outline-none"/>
+                    ) : (
+                        <h3 className="text-xl font-bold text-text-primary" onClick={() => setIsEditingName(true)}>{editingTask.name}</h3>
+                    )}
+                </div>
+                <div className="p-4 overflow-y-auto flex-grow">
+                    {/* Description */}
+                    <div className="mb-4">
+                        <h4 className="font-semibold text-text-secondary mb-2">Description</h4>
+                        {isEditingDesc ? (
+                            <TextAreaField value={editingTask.description || ''} onChange={e => setEditingTask({...editingTask, description: e.target.value})} onBlur={() => { handleUpdate('description', editingTask.description); setIsEditingDesc(false); }} autoFocus rows="4" />
+                        ) : (
+                            <p onClick={() => setIsEditingDesc(true)} className="text-text-secondary whitespace-pre-wrap min-h-[50px]">{editingTask.description || 'Click to add a description...'}</p>
+                        )}
+                    </div>
+                    {/* Subtasks */}
+                    <div className="mb-4">
+                        <h4 className="font-semibold text-text-secondary mb-2">Checklist</h4>
+                        {editingTask.subtasks?.map((sub, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                                <input type="checkbox" checked={sub.completed} onChange={e => handleSubtaskChange(index, e.target.checked)} className="h-4 w-4 rounded bg-transparent border-glass-border text-primary focus:ring-primary"/>
+                                <span className={sub.completed ? 'line-through text-text-secondary' : ''}>{sub.text}</span>
+                            </div>
+                        ))}
+                        <form onSubmit={handleAddSubtask} className="mt-2">
+                            <input name="subtask" placeholder="+ Add an item" className="w-full bg-transparent p-1 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                        </form>
+                    </div>
+                    {/* Comments */}
+                    <div>
+                        <h4 className="font-semibold text-text-secondary mb-2">Comments</h4>
+                        <div className="space-y-3">
+                            {comments.map(comment => (
+                                <div key={comment.id} className="text-sm">
+                                    <span className="font-bold text-text-primary">{comment.authorName}</span>
+                                    <p className="bg-matte-black/30 p-2 rounded-md mt-1">{comment.text}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <form onSubmit={handleAddComment} className="mt-4">
+                            <TextAreaField value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Write a comment..." rows="2"/>
+                            <AuthButton type="submit" className="mt-2">Comment</AuthButton>
+                        </form>
+                    </div>
+                </div>
+                 <button onClick={onClose} className="absolute top-3 right-3 text-text-secondary hover:text-white">&times;</button>
+            </div>
+        </div>
+    );
 };
 
-// --- TASKS COMPONENT (with modal logic) ---
-const TasksSection = ({ clientId, projectId }) => {
-    const [tasks, setTasks] = useState([]);
+const KanbanBoard = ({ clientId, projectId }) => {
+    const [columns, setColumns] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
-    const fetchTasks = async () => { setIsLoading(true); const q = query(tasksCol, orderBy('createdAt', 'desc')); const taskSnapshot = await getDocs(q); const taskList = taskSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setTasks(taskList); setIsLoading(false); };
-    useEffect(() => { fetchTasks(); }, [clientId, projectId]);
-    const toggleTaskCompletion = async (taskId, currentStatus) => { const taskDoc = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', taskId); try { await updateDoc(taskDoc, { isCompleted: !currentStatus }); fetchTasks(); } catch (error) { console.error("Error updating task: ", error); } };
-    const handleDeleteTask = async (taskId) => { const taskDoc = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', taskId); try { await deleteDoc(taskDoc); fetchTasks(); } catch (error) { console.error("Error deleting task: ", error); } };
-    const dueTasks = tasks.filter(t => !t.isCompleted);
-    const completedTasks = tasks.filter(t => t.isCompleted);
-    return ( <div className="mt-6 border-t border-glass-border pt-6"> <div className="flex justify-between items-center mb-3"> <h4 className="text-lg font-bold text-text-primary">Tasks</h4> <button onClick={() => setIsModalOpen(true)} className="bg-primary hover:bg-primary-hover text-white font-bold py-2 px-4 rounded-lg text-sm">Add Task</button> </div> {isModalOpen && <AddTaskModal clientId={clientId} projectId={projectId} onClose={() => setIsModalOpen(false)} onTaskAdded={fetchTasks} />} {isLoading ? <LoadingSpinner /> : ( <div className="space-y-4"> <div> <h5 className="text-md font-semibold text-text-secondary mb-2">Due ({dueTasks.length})</h5> <div className="space-y-2">{dueTasks.map(task => (<div key={task.id} className="p-3 bg-matte-black/30 rounded-lg flex items-center justify-between"> <div className="flex items-center gap-3"> <input type="checkbox" checked={task.isCompleted} onChange={() => toggleTaskCompletion(task.id, task.isCompleted)} className="h-5 w-5 rounded bg-transparent border-glass-border text-primary focus:ring-primary" /> <span>{task.name}</span> </div> <button onClick={() => handleDeleteTask(task.id)} className="text-text-secondary hover:text-red-500 text-xs">Delete</button> </div>))}</div> </div> <div> <h5 className="text-md font-semibold text-text-secondary mb-2">Completed ({completedTasks.length})</h5> <div className="space-y-2">{completedTasks.map(task => (<div key={task.id} className="p-3 bg-matte-black/50 rounded-lg flex items-center justify-between"> <div className="flex items-center gap-3"> <input type="checkbox" checked={task.isCompleted} onChange={() => toggleTaskCompletion(task.id, task.isCompleted)} className="h-5 w-5 rounded bg-transparent border-glass-border text-primary focus:ring-primary" /> <span className="line-through text-text-secondary">{task.name}</span> </div> <button onClick={() => handleDeleteTask(task.id)} className="text-text-secondary hover:text-red-500 text-xs">Delete</button> </div>))}</div> </div> </div> )} </div> );
+    const [selectedTask, setSelectedTask] = useState(null);
+
+    const fetchTasksAndSetColumns = async () => {
+        // No change here, but we will call it from the modal onUpdate
+        setIsLoading(true);
+        const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
+        const q = query(tasksCol, orderBy('createdAt', 'asc'));
+        const taskSnapshot = await getDocs(q);
+        const taskList = taskSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const initialColumns = { 'todo': { name: 'To Do', items: [] }, 'inprogress': { name: 'In Progress', items: [] }, 'done': { name: 'Done', items: [] } };
+        taskList.forEach(task => {
+            const status = task.status || (task.isCompleted ? 'done' : 'todo');
+            if (initialColumns[status]) initialColumns[status].items.push(task);
+            else initialColumns['todo'].items.push(task);
+        });
+        setColumns(initialColumns);
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        fetchTasksAndSetColumns();
+    }, [clientId, projectId]);
+
+    const onDragEnd = async (result, columns, setColumns) => {
+        if (!result.destination) return;
+        const { source, destination } = result;
+        if (source.droppableId !== destination.droppableId) {
+            const sourceColumn = columns[source.droppableId];
+            const destColumn = columns[destination.droppableId];
+            const sourceItems = [...sourceColumn.items];
+            const destItems = [...destColumn.items];
+            const [removed] = sourceItems.splice(source.index, 1);
+            destItems.splice(destination.index, 0, removed);
+            setColumns({ ...columns, [source.droppableId]: { ...sourceColumn, items: sourceItems }, [destination.droppableId]: { ...destColumn, items: destItems } });
+            const taskRef = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', result.draggableId);
+            await updateDoc(taskRef, { status: destination.droppableId });
+        } else {
+            const column = columns[source.droppableId];
+            const copiedItems = [...column.items];
+            const [removed] = copiedItems.splice(source.index, 1);
+            copiedItems.splice(destination.index, 0, removed);
+            setColumns({ ...columns, [source.droppableId]: { ...column, items: copiedItems } });
+        }
+    };
+
+    const handleAddTask = async (columnId, taskName) => {
+        if (!taskName || !taskName.trim()) return;
+        const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
+        await addDoc(tasksCol, { name: taskName, description: '', status: columnId, createdAt: serverTimestamp() });
+        fetchTasksAndSetColumns();
+    };
+
+    if (isLoading || !columns) return <div className="flex justify-center items-center py-8"><LoadingSpinner /></div>;
+
+    return (
+        <>
+            <div className="flex gap-4 overflow-x-auto p-1">
+                <DragDropContext onDragEnd={result => onDragEnd(result, columns, setColumns)}>
+                    {Object.entries(columns).map(([columnId, column]) => (
+                        <div key={columnId} className="w-80 flex-shrink-0">
+                            <div className="bg-glass-bg/80 rounded-xl shadow-md">
+                                <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
+                                <Droppable droppableId={columnId} key={columnId}>
+                                    {(provided, snapshot) => (
+                                        <div {...provided.droppableProps} ref={provided.innerRef} className={`p-2 transition-colors duration-200 min-h-[400px] ${snapshot.isDraggingOver ? 'bg-primary/10' : ''}`}>
+                                            {column.items.map((item, index) => (
+                                                <Draggable key={item.id} draggableId={item.id} index={index}>
+                                                    {(provided, snapshot) => (
+                                                        <div
+                                                            ref={provided.innerRef}
+                                                            {...provided.draggableProps}
+                                                            {...provided.dragHandleProps}
+                                                            onClick={() => setSelectedTask(item)}
+                                                            className={`p-3 mb-2 rounded-lg shadow-sm transition-all duration-200 border border-transparent cursor-pointer ${snapshot.isDragging ? 'bg-primary/80 shadow-lg' : 'bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50'}`}
+                                                        >
+                                                            <p className="text-text-primary font-medium">{item.name}</p>
+                                                        </div>
+                                                    )}
+                                                </Draggable>
+                                            ))}
+                                            {provided.placeholder}
+                                        </div>
+                                    )}
+                                </Droppable>
+                                <div className="p-2 border-t border-glass-border">
+                                    <form onSubmit={e => { e.preventDefault(); handleAddTask(columnId, e.target.elements.taskName.value); e.target.reset(); }}>
+                                        <input name="taskName" type="text" placeholder="+ Add a card" className="w-full bg-transparent p-2 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </DragDropContext>
+            </div>
+            {selectedTask && (
+                <TaskDetailModal
+                    task={selectedTask}
+                    clientId={clientId}
+                    projectId={projectId}
+                    onClose={() => setSelectedTask(null)}
+                    onUpdate={fetchTasksAndSetColumns}
+                />
+            )}
+        </>
+    );
 };
 
-// --- NOTES & FILES (omitted for brevity) ---
-const NotesSection = ({ clientId, projectId, initialNotes }) => { /* ... */ };
-const FilesSection = ({ clientId, projectId }) => { /* ... */ };
 
 // --- MAIN COMPONENT ---
 const ProjectDetailPage = () => {
@@ -59,47 +234,27 @@ const ProjectDetailPage = () => {
     const [project, setProject] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [isInvoiceLoading, setIsInvoiceLoading] = useState(false);
-    const [invoiceMessage, setInvoiceMessage] = useState('');
-
-    const fetchProject = async () => {
-        setIsLoading(true);
-        const docRef = doc(db, 'clients', clientId, 'projects', projectId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            setProject({ id: docSnap.id, ...docSnap.data() });
-        } else {
-            setError('No such project found!');
-        }
-        setIsLoading(false);
-    };
 
     useEffect(() => {
+        const fetchProject = async () => {
+            setIsLoading(true);
+            try {
+                const docRef = doc(db, 'clients', clientId, 'projects', projectId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setProject({ id: docSnap.id, ...docSnap.data() });
+                } else {
+                    setError('No such project found!');
+                }
+            } catch (err) {
+                console.error("Error fetching project data:", err);
+                setError('Failed to fetch project data.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
         if (clientId && projectId) fetchProject();
     }, [clientId, projectId]);
-
-    const handleCreateInvoice = async () => {
-        setIsInvoiceLoading(true);
-        setInvoiceMessage('');
-        try {
-            await addDoc(collection(db, 'invoices'), {
-                clientId: clientId,
-                projectId: projectId,
-                projectName: project.name,
-                amount: project.totalCost || 0,
-                status: 'unpaid',
-                createdAt: serverTimestamp(),
-                dueDate: project.dueDate || null,
-            });
-            setInvoiceMessage('Invoice created successfully!');
-        } catch (error) {
-            console.error("Error creating invoice:", error);
-            setInvoiceMessage('Failed to create invoice.');
-        } finally {
-            setIsInvoiceLoading(false);
-            setTimeout(() => setInvoiceMessage(''), 3000);
-        }
-    };
 
     if (isLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner /></div>;
     if (error) return <p className="text-center text-red-500">{error}</p>;
@@ -107,21 +262,14 @@ const ProjectDetailPage = () => {
 
     return (
         <div>
-            <button onClick={() => navigate(`/client/${clientId}`)} className="text-sm text-primary hover:underline mb-2">&larr; Back to Client</button>
-            <h2 className="text-3xl font-bold text-text-primary mb-2">{project.name}</h2>
-            <p className="text-lg text-text-secondary mb-6">Total Cost: ${(project.totalCost || 0).toLocaleString()}</p>
-            <div className="bg-glass-bg backdrop-blur-xl rounded-2xl shadow-glass border border-glass-border p-6">
-                <h3 className="text-xl font-bold text-text-primary mb-4">Project Workspace</h3>
-                <TasksSection clientId={clientId} projectId={projectId} />
-                <NotesSection clientId={clientId} projectId={projectId} initialNotes={project.notes} />
-                <FilesSection clientId={clientId} projectId={projectId} />
-                <div className="mt-6 border-t border-glass-border pt-6">
-                    <AuthButton onClick={handleCreateInvoice} isLoading={isInvoiceLoading}>
-                        Create Invoice
-                    </AuthButton>
-                    {invoiceMessage && <p className="text-sm text-green-400 mt-2">{invoiceMessage}</p>}
+            <button onClick={() => navigate(`/client/${clientId}`)} className="text-sm text-primary hover:underline mb-4">&larr; Back to Client</button>
+            <div className="flex justify-between items-center mb-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-text-primary">{project.name}</h2>
+                    <p className="text-base text-text-secondary mt-1">{project.description || 'This project has no description.'}</p>
                 </div>
             </div>
+            <KanbanBoard clientId={clientId} projectId={projectId} />
         </div>
     );
 };

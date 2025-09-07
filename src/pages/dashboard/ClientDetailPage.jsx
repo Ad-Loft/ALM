@@ -9,7 +9,137 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 // --- TABS (some are placeholders or temporarily disabled) ---
 
 const OverviewTab = ({ client }) => <div>Client Overview for {client.companyName} - Content coming soon.</div>;
-const ProjectsTab = ({ client }) => <div>Projects for {client.companyName} - Content coming soon.</div>;
+
+const ProjectsTab = ({ client }) => {
+    const navigate = useNavigate();
+    const [projects, setProjects] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newProjectName, setNewProjectName] = useState('');
+    const [newProjectDescription, setNewProjectDescription] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
+
+    const fetchProjects = async () => {
+        setIsLoading(true);
+        try {
+            const projectsCollectionRef = collection(db, 'clients', client.id, 'projects');
+            const q = query(projectsCollectionRef, orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const projectsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setProjects(projectsData);
+        } catch (error) {
+            console.error("Error fetching projects:", error);
+            // Optionally set an error state here to show in the UI
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchProjects();
+    }, [client.id]);
+
+    const handleCreateProject = async (e) => {
+        e.preventDefault();
+        if (!newProjectName.trim()) {
+            alert('Project name is required.');
+            return;
+        }
+        setIsCreating(true);
+        try {
+            const projectsCollectionRef = collection(db, 'clients', client.id, 'projects');
+            await addDoc(projectsCollectionRef, {
+                name: newProjectName,
+                description: newProjectDescription,
+                createdAt: serverTimestamp(),
+                status: 'In Progress', // Default status
+            });
+            setShowCreateModal(false);
+            setNewProjectName('');
+            setNewProjectDescription('');
+            await fetchProjects(); // Refetch projects to show the new one
+        } catch (error) {
+            console.error("Error creating project:", error);
+            // Optionally set an error state here
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleProjectClick = (projectId) => {
+        // This will navigate to the project detail page in a future step
+        // navigate(`/client/${client.id}/project/${projectId}`);
+        console.log(`Navigating to project ${projectId}`);
+    };
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center py-8"><LoadingSpinner /></div>;
+    }
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-text-primary">Projects</h3>
+                <AuthButton onClick={() => setShowCreateModal(true)}>Create New Project</AuthButton>
+            </div>
+
+            {/* Project List */}
+            <div className="space-y-3">
+                {projects.length > 0 ? (
+                    projects.map(project => (
+                        <div key={project.id} onClick={() => handleProjectClick(project.id)}
+                             className="bg-glass-bg/50 p-4 rounded-lg border border-glass-border hover:border-primary/80 cursor-pointer transition-all duration-200">
+                            <h4 className="font-semibold text-text-primary">{project.name}</h4>
+                            <p className="text-sm text-text-secondary mt-1">{project.description || 'No description provided.'}</p>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center py-6 bg-glass-bg/50 rounded-lg border border-glass-border">
+                        <p className="text-text-secondary">No projects found for this client.</p>
+                        <p className="text-sm text-text-secondary/80">Click "Create New Project" to get started.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Create Project Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50">
+                    <div className="bg-glass-bg-solid w-full max-w-md p-6 rounded-2xl shadow-glass border border-glass-border m-4">
+                        <h3 className="text-2xl font-bold text-text-primary mb-4">Create New Project</h3>
+                        <form onSubmit={handleCreateProject}>
+                            <div className="space-y-4">
+                                <InputField
+                                    label="Project Name"
+                                    id="projectName"
+                                    type="text"
+                                    value={newProjectName}
+                                    onChange={(e) => setNewProjectName(e.target.value)}
+                                    required
+                                />
+                                <TextAreaField
+                                    label="Project Description (Optional)"
+                                    id="projectDescription"
+                                    value={newProjectDescription}
+                                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                                    rows="4"
+                                />
+                            </div>
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <AuthButton type="button" onClick={() => setShowCreateModal(false)} className="bg-transparent border border-text-secondary/50 hover:bg-text-secondary/20">
+                                    Cancel
+                                </AuthButton>
+                                <AuthButton type="submit" disabled={isCreating}>
+                                    {isCreating ? <LoadingSpinner className="w-5 h-5" /> : 'Create Project'}
+                                </AuthButton>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const InvoicesTab = ({ client }) => <div>Invoices for {client.companyName} - Content coming soon.</div>;
 const InteractionsTab = ({ client }) => <div>Interaction Log for {client.companyName} - Content coming soon.</div>;
 // const ReportingTab = ({ client }) => <div>Reporting Tab</div>; // Temporarily disabled
