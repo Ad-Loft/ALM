@@ -191,10 +191,11 @@ const KanbanBoard = ({ clientId, projectId }) => {
                                                             ref={provided.innerRef}
                                                             {...provided.draggableProps}
                                                             {...provided.dragHandleProps}
-                                                            onClick={() => setSelectedTask(item)}
                                                             className={`p-3 mb-2 rounded-lg shadow-sm transition-all duration-200 border border-transparent cursor-pointer ${snapshot.isDragging ? 'bg-primary/80 shadow-lg' : 'bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50'}`}
                                                         >
-                                                            <p className="text-text-primary font-medium">{item.name}</p>
+                                                            <div onClick={() => setSelectedTask(item)}>
+                                                                <p className="text-text-primary font-medium">{item.name}</p>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </Draggable>
