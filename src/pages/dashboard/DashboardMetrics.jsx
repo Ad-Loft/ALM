@@ -44,26 +44,6 @@ const DashboardMetrics = () => {
                 const invoicesSnapshot = await getDocs(collection(db, 'invoices'));
                 const invoicesData = invoicesSnapshot.docs.map(doc => doc.data());
 
-                // --- Aggregate data from sub-collections ---
-                let totalProposalSpend = 0;
-                let totalAdSpend = 0;
-
-                for (const client of clientsData) {
-                    // Aggregate proposal spend from each client's projects
-                    const projectsCol = collection(db, 'clients', client.id, 'projects');
-                    const projectsSnapshot = await getDocs(projectsCol);
-                    projectsSnapshot.forEach(doc => {
-                        totalProposalSpend += doc.data().totalCost || 0;
-                    });
-
-                    // Aggregate ad spend from each client's daily stats
-                    const statsCol = collection(db, 'clients', client.id, 'dailyStats');
-                    const statsSnapshot = await getDocs(statsCol);
-                    statsSnapshot.forEach(doc => {
-                        totalAdSpend += doc.data().spend || 0;
-                    });
-                }
-
                 // --- KPI Calculations (with defaults) ---
                 const currentMonth = new Date().getMonth();
                 const monthlyRevenue = invoicesData
@@ -74,18 +54,12 @@ const DashboardMetrics = () => {
                     .filter(inv => inv.status === 'unpaid')
                     .reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-                const totalRevenue = invoicesData.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
-
-                const roasGoogle = totalAdSpend > 0 ? (totalRevenue / totalAdSpend) : 0;
-                const roasUpwork = totalProposalSpend > 0 ? (totalRevenue / totalProposalSpend) : 0;
+                // Reporting features have been temporarily removed as per user request to fix permission errors.
+                // We can re-add Proposal Spend, Ad Spend, and ROAS calculations later.
 
                 setKpiData([
                     { title: "Monthly Revenue", value: `$${monthlyRevenue.toLocaleString()}`, icon: <DollarSignIcon /> },
                     { title: "Payments Outstanding", value: `$${paymentsOutstanding.toLocaleString()}`, icon: <ClockIcon /> },
-                    { title: "Proposal Spend", value: `$${totalProposalSpend.toLocaleString()}`, icon: <FileTextIcon /> },
-                    { title: "Ad Spend", value: `$${totalAdSpend.toLocaleString()}`, icon: <ActivityIcon /> },
-                    { title: "ROAS (Google)", value: `${roasGoogle.toFixed(2)}x`, icon: <TrendingUpIcon /> },
-                    { title: "ROAS (Upwork)", value: `${roasUpwork.toFixed(2)}x`, icon: <TrendingUpIcon /> },
                 ]);
 
                 setClients(clientsData);
