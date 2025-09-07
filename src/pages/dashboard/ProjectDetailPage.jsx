@@ -5,8 +5,6 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } f
 import { db } from '../../firebase/config';
 import { LoadingSpinner } from '../../components/ui/Icons';
 import { InputField, AuthButton, TextAreaField } from '../../components/ui/AuthComponents';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-
 const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     const [editingTask, setEditingTask] = useState(task);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -14,7 +12,6 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState("");
 
-    // Fetch comments
     useEffect(() => {
         const commentsCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id, 'comments');
         const q = query(commentsCol, orderBy('createdAt', 'asc'));
@@ -27,7 +24,12 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     const handleUpdate = async (field, value) => {
         const taskRef = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id);
         await updateDoc(taskRef, { [field]: value });
-        onUpdate(); // Trigger a refetch on the board
+        onUpdate();
+    };
+
+    const handleStatusChange = (newStatus) => {
+        setEditingTask(prev => ({ ...prev, status: newStatus }));
+        handleUpdate('status', newStatus);
     };
 
     const handleSubtaskChange = async (index, completed) => {
@@ -54,8 +56,7 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
         await addDoc(commentsCol, {
             text: newComment,
             createdAt: serverTimestamp(),
-            // authorId: auth.currentUser.uid, // When auth is integrated
-            authorName: "User" // Placeholder
+            authorName: "User"
         });
         setNewComment("");
     };
@@ -63,15 +64,23 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 animate-fade-in" onClick={onClose}>
             <div className="bg-glass-bg-solid w-full max-w-2xl h-[90vh] flex flex-col rounded-2xl shadow-glass border border-glass-border m-4" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-glass-border flex-shrink-0">
+                <div className="p-4 border-b border-glass-border flex-shrink-0 flex justify-between items-center">
                     {isEditingName ? (
                         <input type="text" value={editingTask.name} onChange={e => setEditingTask({...editingTask, name: e.target.value})} onBlur={() => { handleUpdate('name', editingTask.name); setIsEditingName(false); }} autoFocus className="text-xl font-bold text-text-primary bg-transparent w-full border-b-2 border-primary focus:outline-none"/>
                     ) : (
                         <h3 className="text-xl font-bold text-text-primary" onClick={() => setIsEditingName(true)}>{editingTask.name}</h3>
                     )}
+                    <select
+                        value={editingTask.status || 'todo'}
+                        onChange={(e) => handleStatusChange(e.target.value)}
+                        className="bg-matte-black/50 border border-glass-border rounded-md px-3 py-1 text-text-primary focus:ring-primary focus:border-primary"
+                    >
+                        <option value="todo">To Do</option>
+                        <option value="inprogress">In Progress</option>
+                        <option value="done">Done</option>
+                    </select>
                 </div>
                 <div className="p-4 overflow-y-auto flex-grow">
-                    {/* Description */}
                     <div className="mb-4">
                         <h4 className="font-semibold text-text-secondary mb-2">Description</h4>
                         {isEditingDesc ? (
@@ -80,7 +89,6 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
                             <p onClick={() => setIsEditingDesc(true)} className="text-text-secondary whitespace-pre-wrap min-h-[50px]">{editingTask.description || 'Click to add a description...'}</p>
                         )}
                     </div>
-                    {/* Subtasks */}
                     <div className="mb-4">
                         <h4 className="font-semibold text-text-secondary mb-2">Checklist</h4>
                         {editingTask.subtasks?.map((sub, index) => (
@@ -93,7 +101,6 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
                             <input name="subtask" placeholder="+ Add an item" className="w-full bg-transparent p-1 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-1 focus:ring-primary/50" />
                         </form>
                     </div>
-                    {/* Comments */}
                     <div>
                         <h4 className="font-semibold text-text-secondary mb-2">Comments</h4>
                         <div className="space-y-3">
@@ -116,13 +123,12 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     );
 };
 
-const KanbanBoard = ({ clientId, projectId }) => {
+const BoardOfTasks = ({ clientId, projectId }) => {
     const [columns, setColumns] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedTask, setSelectedTask] = useState(null);
 
     const fetchTasksAndSetColumns = async () => {
-        // No change here, but we will call it from the modal onUpdate
         setIsLoading(true);
         const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
         const q = query(tasksCol, orderBy('createdAt', 'asc'));
@@ -142,28 +148,6 @@ const KanbanBoard = ({ clientId, projectId }) => {
         fetchTasksAndSetColumns();
     }, [clientId, projectId]);
 
-    const onDragEnd = async (result, columns, setColumns) => {
-        if (!result.destination) return;
-        const { source, destination } = result;
-        if (source.droppableId !== destination.droppableId) {
-            const sourceColumn = columns[source.droppableId];
-            const destColumn = columns[destination.droppableId];
-            const sourceItems = [...sourceColumn.items];
-            const destItems = [...destColumn.items];
-            const [removed] = sourceItems.splice(source.index, 1);
-            destItems.splice(destination.index, 0, removed);
-            setColumns({ ...columns, [source.droppableId]: { ...sourceColumn, items: sourceItems }, [destination.droppableId]: { ...destColumn, items: destItems } });
-            const taskRef = doc(db, 'clients', clientId, 'projects', projectId, 'tasks', result.draggableId);
-            await updateDoc(taskRef, { status: destination.droppableId });
-        } else {
-            const column = columns[source.droppableId];
-            const copiedItems = [...column.items];
-            const [removed] = copiedItems.splice(source.index, 1);
-            copiedItems.splice(destination.index, 0, removed);
-            setColumns({ ...columns, [source.droppableId]: { ...column, items: copiedItems } });
-        }
-    };
-
     const handleAddTask = async (columnId, taskName) => {
         if (!taskName || !taskName.trim()) return;
         const tasksCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks');
@@ -176,43 +160,29 @@ const KanbanBoard = ({ clientId, projectId }) => {
     return (
         <>
             <div className="flex gap-4 overflow-x-auto p-1">
-                <DragDropContext onDragEnd={result => onDragEnd(result, columns, setColumns)}>
-                    {Object.entries(columns).map(([columnId, column]) => (
-                        <div key={columnId} className="w-80 flex-shrink-0">
-                            <div className="bg-glass-bg/80 rounded-xl shadow-md">
-                                <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
-                                <Droppable droppableId={columnId} key={columnId}>
-                                    {(provided, snapshot) => (
-                                        <div {...provided.droppableProps} ref={provided.innerRef} className={`p-2 transition-colors duration-200 min-h-[400px] ${snapshot.isDraggingOver ? 'bg-primary/10' : ''}`}>
-                                            {column.items.map((item, index) => (
-                                                <Draggable key={item.id} draggableId={item.id} index={index}>
-                                                    {(provided, snapshot) => (
-                                                        <div
-                                                            ref={provided.innerRef}
-                                                            {...provided.draggableProps}
-                                                            {...provided.dragHandleProps}
-                                                            className={`p-3 mb-2 rounded-lg shadow-sm transition-all duration-200 border border-transparent cursor-pointer ${snapshot.isDragging ? 'bg-primary/80 shadow-lg' : 'bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50'}`}
-                                                        >
-                                                            <div onClick={() => setSelectedTask(item)}>
-                                                                <p className="text-text-primary font-medium">{item.name}</p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </Draggable>
-                                            ))}
-                                            {provided.placeholder}
-                                        </div>
-                                    )}
-                                </Droppable>
-                                <div className="p-2 border-t border-glass-border">
-                                    <form onSubmit={e => { e.preventDefault(); handleAddTask(columnId, e.target.elements.taskName.value); e.target.reset(); }}>
-                                        <input name="taskName" type="text" placeholder="+ Add a card" className="w-full bg-transparent p-2 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                                    </form>
-                                </div>
+                {Object.entries(columns).map(([columnId, column]) => (
+                    <div key={columnId} className="w-80 flex-shrink-0">
+                        <div className="bg-glass-bg/80 rounded-xl shadow-md">
+                            <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
+                            <div className="p-2 min-h-[400px]">
+                                {column.items.map((item, index) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => setSelectedTask(item)}
+                                        className="p-3 mb-2 rounded-lg shadow-sm bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50 border border-transparent cursor-pointer"
+                                    >
+                                        <p className="text-text-primary font-medium">{item.name}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="p-2 border-t border-glass-border">
+                                <form onSubmit={e => { e.preventDefault(); handleAddTask(columnId, e.target.elements.taskName.value); e.target.reset(); }}>
+                                    <input name="taskName" type="text" placeholder="+ Add a card" className="w-full bg-transparent p-2 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                                </form>
                             </div>
                         </div>
-                    ))}
-                </DragDropContext>
+                    </div>
+                ))}
             </div>
             {selectedTask && (
                 <TaskDetailModal
