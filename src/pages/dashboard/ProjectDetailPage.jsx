@@ -13,6 +13,11 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     const [newComment, setNewComment] = useState("");
 
     useEffect(() => {
+        // Reset editing state when task changes
+        setEditingTask(task);
+    }, [task]);
+
+    useEffect(() => {
         const commentsCol = collection(db, 'clients', clientId, 'projects', projectId, 'tasks', task.id, 'comments');
         const q = query(commentsCol, orderBy('createdAt', 'asc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -56,7 +61,7 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
         await addDoc(commentsCol, {
             text: newComment,
             createdAt: serverTimestamp(),
-            authorName: "User"
+            authorName: "User" // Placeholder for auth user
         });
         setNewComment("");
     };
@@ -137,8 +142,11 @@ const KanbanBoard = ({ clientId, projectId }) => {
         const initialColumns = { 'todo': { name: 'To Do', items: [] }, 'inprogress': { name: 'In Progress', items: [] }, 'done': { name: 'Done', items: [] } };
         taskList.forEach(task => {
             const status = task.status || (task.isCompleted ? 'done' : 'todo');
-            if (initialColumns[status]) initialColumns[status].items.push(task);
-            else initialColumns['todo'].items.push(task);
+            if (initialColumns[status]) {
+                initialColumns[status].items.push(task);
+            } else {
+                initialColumns['todo'].items.push(task);
+            }
         });
         setColumns(initialColumns);
         setIsLoading(false);
@@ -165,12 +173,11 @@ const KanbanBoard = ({ clientId, projectId }) => {
                         <div className="bg-glass-bg/80 rounded-xl shadow-md">
                             <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
                             <div className="p-2 min-h-[400px]">
-                                {column.items.map((item, index) => (
+                                {column.items.map((item) => (
                                     <div
                                         key={item.id}
                                         onClick={() => setSelectedTask(item)}
                                         className="p-3 mb-2 rounded-lg shadow-sm bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50 border border-transparent cursor-pointer"
-                                        style={{ border: '3px solid red', zIndex: 9999, position: 'relative' }}
                                     >
                                         <p className="text-text-primary font-medium">{item.name}</p>
                                     </div>
@@ -204,28 +211,46 @@ const ProjectDetailPage = () => {
     const { clientId, projectId } = useParams();
     const navigate = useNavigate();
     const [project, setProject] = useState(null);
+    const [client, setClient] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchProject = async () => {
+        const fetchData = async () => {
             setIsLoading(true);
             try {
-                const docRef = doc(db, 'clients', clientId, 'projects', projectId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setProject({ id: docSnap.id, ...docSnap.data() });
+                // Fetch project and client data in parallel
+                const projectRef = doc(db, 'clients', clientId, 'projects', projectId);
+                const clientRef = doc(db, 'clients', clientId);
+
+                const [projectSnap, clientSnap] = await Promise.all([
+                    getDoc(projectRef),
+                    getDoc(clientRef)
+                ]);
+
+                if (projectSnap.exists()) {
+                    setProject({ id: projectSnap.id, ...projectSnap.data() });
                 } else {
                     setError('No such project found!');
                 }
+
+                if (clientSnap.exists()) {
+                    setClient({ id: clientSnap.id, ...clientSnap.data() });
+                } else {
+                    // Handle case where client isn't found, maybe set an error
+                }
+
             } catch (err) {
-                console.error("Error fetching project data:", err);
-                setError('Failed to fetch project data.');
+                console.error("Error fetching data:", err);
+                setError('Failed to fetch project or client data.');
             } finally {
                 setIsLoading(false);
             }
         };
-        if (clientId && projectId) fetchProject();
+
+        if (clientId && projectId) {
+            fetchData();
+        }
     }, [clientId, projectId]);
 
     if (isLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner /></div>;
@@ -234,9 +259,16 @@ const ProjectDetailPage = () => {
 
     return (
         <div>
-            <button onClick={() => navigate(`/client/${clientId}`)} className="text-sm text-primary hover:underline mb-4">&larr; Back to Client</button>
+            <div className="mb-4">
+                <button onClick={() => navigate(`/client/${clientId}`)} className="text-sm text-primary hover:underline">
+                    &larr; Back to {client ? client.companyName : 'Client'}
+                </button>
+            </div>
             <div className="flex justify-between items-center mb-4">
                 <div>
+                    {client && (
+                        <h3 className="text-lg font-semibold text-text-secondary">{client.companyName}</h3>
+                    )}
                     <h2 className="text-3xl font-bold text-text-primary">{project.name}</h2>
                     <p className="text-base text-text-secondary mt-1">{project.description || 'This project has no description.'}</p>
                 </div>
