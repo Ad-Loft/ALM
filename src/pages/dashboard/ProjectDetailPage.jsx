@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
+import { doc, getDoc, collection, getDocs, addDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { LoadingSpinner } from '../../components/ui/Icons';
 import { InputField, AuthButton, TextAreaField } from '../../components/ui/AuthComponents';
+
 const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     const [editingTask, setEditingTask] = useState(task);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -123,9 +123,10 @@ const TaskDetailModal = ({ task, clientId, projectId, onClose, onUpdate }) => {
     );
 };
 
-const BoardOfTasks = ({ clientId, projectId }) => {
+const KanbanBoard = ({ clientId, projectId }) => {
     const [columns, setColumns] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const fetchTasksAndSetColumns = async () => {
         setIsLoading(true);
@@ -157,31 +158,42 @@ const BoardOfTasks = ({ clientId, projectId }) => {
     if (isLoading || !columns) return <div className="flex justify-center items-center py-8"><LoadingSpinner /></div>;
 
     return (
-        <div className="flex gap-4 overflow-x-auto p-1">
-            {Object.entries(columns).map(([columnId, column]) => (
-                <div key={columnId} className="w-80 flex-shrink-0">
-                    <div className="bg-glass-bg/80 rounded-xl shadow-md">
-                        <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
-                        <div className="p-2 min-h-[400px]">
-                            {column.items.map((item, index) => (
-                                <div
-                                    key={item.id}
-                                    onClick={() => alert(`Task clicked: ${item.name}`)}
-                                    className="p-3 mb-2 rounded-lg shadow-sm bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50 border border-transparent cursor-pointer"
-                                >
-                                    <p className="text-text-primary font-medium">{item.name}</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-2 border-t border-glass-border">
-                            <form onSubmit={e => { e.preventDefault(); handleAddTask(columnId, e.target.elements.taskName.value); e.target.reset(); }}>
-                                <input name="taskName" type="text" placeholder="+ Add a card" className="w-full bg-transparent p-2 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
-                            </form>
+        <>
+            <div className="flex gap-4 overflow-x-auto p-1">
+                {Object.entries(columns).map(([columnId, column]) => (
+                    <div key={columnId} className="w-80 flex-shrink-0">
+                        <div className="bg-glass-bg/80 rounded-xl shadow-md">
+                            <h3 className="p-4 text-lg font-bold text-text-primary border-b border-glass-border">{column.name} ({column.items.length})</h3>
+                            <div className="p-2 min-h-[400px]">
+                                {column.items.map((item, index) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => setSelectedTask(item)}
+                                        className="p-3 mb-2 rounded-lg shadow-sm bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50 border border-transparent cursor-pointer"
+                                    >
+                                        <p className="text-text-primary font-medium">{item.name}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="p-2 border-t border-glass-border">
+                                <form onSubmit={e => { e.preventDefault(); handleAddTask(columnId, e.target.elements.taskName.value); e.target.reset(); }}>
+                                    <input name="taskName" type="text" placeholder="+ Add a card" className="w-full bg-transparent p-2 rounded-md text-text-secondary placeholder-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/50"/>
+                                </form>
+                            </div>
                         </div>
                     </div>
-                </div>
-            ))}
-        </div>
+                ))}
+            </div>
+            {selectedTask && (
+                <TaskDetailModal
+                    task={selectedTask}
+                    clientId={clientId}
+                    projectId={projectId}
+                    onClose={() => setSelectedTask(null)}
+                    onUpdate={fetchTasksAndSetColumns}
+                />
+            )}
+        </>
     );
 };
 
