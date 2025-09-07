@@ -170,6 +170,7 @@ const KanbanBoard = ({ clientId, projectId }) => {
                                         key={item.id}
                                         onClick={() => setSelectedTask(item)}
                                         className="p-3 mb-2 rounded-lg shadow-sm bg-matte-black/50 hover:bg-matte-black/80 hover:border-primary/50 border border-transparent cursor-pointer"
+                                        style={{ border: '3px solid red', zIndex: 9999, position: 'relative' }}
                                     >
                                         <p className="text-text-primary font-medium">{item.name}</p>
                                     </div>
