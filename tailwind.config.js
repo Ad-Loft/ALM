@@ -22,9 +22,6 @@ module.exports = {
         sans: ["Inter", "sans-serif"],
       },
       colors: {
-        'matte-black': '#1a1a1a',
-        'glass-bg': 'rgba(26, 26, 26, 0.5)',
-        'glass-border': 'rgba(255, 255, 255, 0.1)',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -58,6 +55,8 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        'glass-light': 'rgba(255, 255, 255, 0.5)',
+        'glass-border-light': 'rgba(0, 0, 0, 0.1)',
       },
       borderRadius: {
         lg: "var(--radius)",

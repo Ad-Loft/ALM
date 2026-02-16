@@ -7,7 +7,7 @@ import { LoadingSpinner } from './Icons';
 
 // Note: AuthCard and AuthHeader remain the same as they are custom styled components.
 export const AuthCard = ({ children }) => (
-    <div className="bg-glass-bg backdrop-blur-xl shadow-glass border border-glass-border rounded-2xl py-8 px-4 sm:px-10 animate-fade-in">
+    <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light rounded-xl p-8 shadow-xl">
         {children}
     </div>
 );
@@ -15,8 +15,8 @@ export const AuthCard = ({ children }) => (
 export const AuthHeader = ({ title, subtitle }) => (
     <div className="mb-8 text-center">
         <img className="mx-auto h-12 w-auto" src="https://adlandingpro.com/blog/wp-content/uploads/2025/06/Ad-Loft-Google-Ads.png" alt="Ad Loft Logo" />
-        <h2 className="mt-6 text-4xl font-extrabold text-text-primary">{title}</h2>
-        {subtitle && <p className="mt-2 text-sm text-text-secondary">{subtitle}</p>}
+        <h2 className="mt-6 text-3xl font-bold text-foreground">{title}</h2>
+        {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
     </div>
 );
 

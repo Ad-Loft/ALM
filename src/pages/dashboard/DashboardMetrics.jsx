@@ -5,24 +5,26 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner, DollarSignIcon, ClockIcon, FileTextIcon, ActivityIcon, TrendingUpIcon } from '../../components/ui/Icons';
 
 const KpiCard = ({ title, value, icon }) => (
-    <div className="bg-glass-bg backdrop-blur-xl p-5 rounded-2xl shadow-glass border border-glass-border flex items-start justify-between transition-all duration-300 hover:bg-glass-border/50 hover:border-glass-border">
-        <div className="flex flex-col">
-            <p className="text-base text-text-secondary mb-2">{title}</p>
-            <p className="text-4xl font-bold text-text-primary">{value}</p>
+    <div className="bg-glass-light backdrop-blur-lg border border-glass-border-light p-5 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:border-primary/50">
+        <div className="flex items-start justify-between">
+            <div className="flex flex-col">
+                <p className="text-base text-muted-foreground mb-2">{title}</p>
+                <p className="text-3xl font-bold text-foreground">{value}</p>
+            </div>
+            <div className="bg-white/50 p-3 rounded-lg text-primary">{icon}</div>
         </div>
-        <div className="bg-matte-black/50 p-3 rounded-lg text-primary">{icon}</div>
     </div>
 );
 
 const ClientListItem = ({ client }) => {
     const navigate = useNavigate();
     return (
-        <div onClick={() => navigate(`/client/${client.id}`)} className="flex items-center justify-between p-4 hover:bg-glass-border/30 transition-colors cursor-pointer">
+        <div onClick={() => navigate(`/client/${client.id}`)} className="flex items-center justify-between p-4 hover:bg-accent transition-colors cursor-pointer">
             <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-full bg-glass-bg flex items-center justify-center font-bold text-sm text-text-primary ring-2 ring-glass-border">
+                <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center font-bold text-sm text-foreground ring-2 ring-border">
                     {client.companyName ? client.companyName.split(' ').map(n => n[0]).join('') : 'C'}
                 </div>
-                <span className="font-medium text-text-primary">{client.companyName || 'Unnamed Client'}</span>
+                <span className="font-medium text-foreground">{client.companyName || 'Unnamed Client'}</span>
             </div>
         </div>
     );
@@ -109,20 +111,20 @@ const DashboardMetrics = () => {
     return (
         <div className="w-full">
              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-text-primary">Metrics for {monthYear}</h2>
+                <h2 className="text-3xl font-bold text-foreground">Metrics for {monthYear}</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {kpiData.map((kpi, index) => <KpiCard key={index} {...kpi} />)}
             </div>
-            <div className="bg-glass-bg backdrop-blur-xl rounded-2xl shadow-glass border border-glass-border">
-                <div className="p-4 sm:p-6 border-b border-glass-border">
-                    <h2 className="text-xl font-bold text-text-primary">Active Clients</h2>
+            <div className="bg-glass-light backdrop-blur-lg rounded-xl border border-glass-border-light shadow-lg">
+                <div className="p-4 sm:p-6 border-b border-glass-border-light">
+                    <h2 className="text-xl font-bold text-foreground">Active Clients</h2>
                 </div>
-                <div className="divide-y divide-glass-border">
+                <div className="divide-y divide-glass-border-light">
                     {clients.length > 0 ? (
                         clients.map(client => <ClientListItem key={client.id} client={client} />)
                     ) : (
-                        <p className="p-4 text-text-secondary text-center">No clients found.</p>
+                        <p className="p-4 text-muted-foreground text-center">No clients found.</p>
                     )}
                 </div>
             </div>
